@@ -1,0 +1,47 @@
+# --- Build output ---
+target/
+*/target/
+**/target/
+*.class
+*.war
+*.ear
+*.jar
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+frontend/node_modules/
+.vite/
+*.tsbuildinfo
+
+# --- Secrets and local configuration ---
+.env
+.env.*
+!.env.example
+*.cnf
+*.mylogin.cnf
+*.jks
+*.p12
+*.pfx
+*.pem
+*.key
+id_rsa
+id_ed25519
+
+# --- Logs and local dumps ---
+*.log
+*.dump
+*.sql.bak
+
+# --- IDE / OS ---
+.netbeans/
+.nb-gradle/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Local backups and test output ---
+backups/
+surefire-reports/

@@ -1,0 +1,13 @@
+package com.smarthospital.billing.dto;
+import com.smarthospital.billing.entity.Invoice;
+import com.smarthospital.billing.entity.InvoiceItem;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+public class InvoiceResponse {
+ public UUID id; public UUID branchId; public String invoiceNumber; public UUID patientId; public String patientMrn; public String patientName; public UUID encounterId; public String status; public String currencyCode; public BigDecimal subtotal; public BigDecimal discountAmount; public BigDecimal taxAmount; public BigDecimal totalAmount; public BigDecimal paidAmount; public BigDecimal balanceDue; public Instant issuedAt; public Instant createdAt; public List<Item> items; public List<Payment> payments;
+ public static InvoiceResponse from(Invoice i,BigDecimal paid,List<com.smarthospital.billing.entity.Payment> payments){InvoiceResponse d=new InvoiceResponse();d.id=i.getId();d.branchId=i.getBranchId();d.invoiceNumber=i.getInvoiceNumber();d.patientId=i.getPatientId();d.patientMrn=i.getPatientMrn();d.patientName=i.getPatientName();d.encounterId=i.getEncounterId();d.status=i.getStatus().name();d.currencyCode=i.getCurrencyCode();d.subtotal=i.getSubtotal();d.discountAmount=i.getDiscountAmount();d.taxAmount=i.getTaxAmount();d.totalAmount=i.getTotalAmount();d.paidAmount=paid;d.balanceDue=i.getTotalAmount().subtract(paid).max(BigDecimal.ZERO);d.issuedAt=i.getIssuedAt();d.createdAt=i.getCreatedAt();d.items=i.getItems().stream().map(Item::from).toList();d.payments=payments.stream().map(Payment::from).toList();return d;}
+ public static class Item {public UUID id;public UUID serviceId;public String description;public BigDecimal quantity;public BigDecimal unitPrice;public BigDecimal lineDiscount;public BigDecimal lineTotal;static Item from(InvoiceItem x){Item d=new Item();d.id=x.getId();d.serviceId=x.getService()==null?null:x.getService().getId();d.description=x.getDescriptionSnapshot();d.quantity=x.getQuantity();d.unitPrice=x.getUnitPrice();d.lineDiscount=x.getLineDiscount();d.lineTotal=x.getLineTotal();return d;}}
+ public static class Payment {public UUID id;public String receiptNumber;public BigDecimal amount;public String currencyCode;public String paymentMethod;public String status;public String transactionReference;public Instant paidAt;static Payment from(com.smarthospital.billing.entity.Payment x){Payment d=new Payment();d.id=x.getId();d.receiptNumber=x.getReceiptNumber();d.amount=x.getAmount();d.currencyCode=x.getCurrencyCode();d.paymentMethod=x.getPaymentMethod().name();d.status=x.getStatus().name();d.transactionReference=x.getTransactionReference();d.paidAt=x.getPaidAt();return d;}}
+}

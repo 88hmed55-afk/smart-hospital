@@ -1,0 +1,3023 @@
+openapi: 3.1.0
+info:
+  title: Smart Hospital API
+  version: 1.0.0
+  description: Academic Smart Hospital REST API. Includes branch-scoped patient access, physician-led encounters, 
+    assigned nursing care teams, laboratory orders, specimen processing, independent result review, patient-minimal lab 
+    identifiers, asynchronous laboratory notifications, physician prescriptions, FEFO pharmacy dispensing, idempotent 
+    dispense requests and stock-ledger safeguards; inpatient admission and bed allocation; service invoices and payment 
+    posting with database-enforced financial integrity; branch-scoped operational analytics, historical metric 
+    snapshots, pharmacy reorder thresholds and explainable decision cards; authenticated self-session identity 
+    projection; supplier directory, approved purchase orders, batch-aware goods receiving and stock-ledger posting. 
+    Local GlassFish BASIC authentication is for isolated development only; use HTTPS and a production identity provider 
+    before any real deployment. v0.14 adds branch/global operational settings, branch-scoped audit browsing, append-only
+    audit storage and an authenticated notification inbox. v0.15 adds a dependency readiness probe for MySQL and 
+    JMS alongside the process liveness endpoint.
+servers:
+- url: http://localhost:8080/smart-hospital-api/api/v1
+security:
+- basicAuth: []
+paths:
+  /health:
+    get:
+      summary: Authenticated API process liveness check
+      responses:
+        '200':
+          description: Authenticated API process is responding; dependency readiness is reported separately at 
+            /health/ready.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, const: UP}
+                  application: {type: string}
+                  timestamp: {type: string, format: date-time}
+  /organization/branches:
+    get:
+      summary: List active hospital branches
+      responses:
+        '200':
+          description: Branch list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Branch'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /organization/branches/{branchId}/departments:
+    get:
+      summary: List active departments for a branch
+      parameters:
+      - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200':
+          description: Department list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Department'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /organization/branches/{branchId}/doctors:
+    get:
+      summary: List active doctors for appointment booking
+      parameters:
+      - $ref: '#/components/parameters/BranchId'
+      - in: query
+        name: departmentId
+        schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Active doctors in the branch (optionally filtered by department)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/DoctorOption'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /patients:
+    post:
+      summary: Register a patient
+      description: Creates a patient and optional contact/allergy rows in one transaction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PatientRegistration'}
+      responses:
+        '201':
+          description: Patient created
+          headers:
+            Location: {schema: {type: string, format: uri-reference}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Patient'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    get:
+      summary: Search patients with pagination
+      parameters:
+      - in: query
+        name: q
+        schema: {type: string, maxLength: 100}
+      - in: query
+        name: offset
+        schema: {type: integer, minimum: 0, default: 0}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+      responses:
+        '200':
+          description: Paginated patient summary list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PatientPage'}
+  /patients/{patientId}:
+    parameters:
+    - $ref: '#/components/parameters/PatientId'
+    get:
+      summary: Get patient demographics, contacts and allergies
+      responses:
+        '200':
+          description: Patient detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Patient'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      summary: Update patient demographics
+      description: Does not modify clinical notes, diagnoses, contacts or allergy history.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PatientUpdate'}
+      responses:
+        '200':
+          description: Updated patient detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Patient'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /appointments:
+    get:
+      summary: List appointments within a branch and time range
+      description: Reception and managers can see branch appointments; a doctor sees only appointments assigned to their
+        active staff profile. Patient branch grants are enforced.
+      parameters:
+      - in: query
+        name: branchId
+        required: true
+        schema: {type: string, format: uuid}
+      - in: query
+        name: from
+        required: true
+        schema: {type: string, format: date-time}
+      - in: query
+        name: to
+        required: true
+        schema: {type: string, format: date-time}
+      - in: query
+        name: offset
+        schema: {type: integer, minimum: 0, default: 0}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        '200':
+          description: Branch-scoped paginated appointment schedule
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AppointmentPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Book an appointment
+      description: The database exclusion constraint is the final guard against overlapping bookings for one doctor.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AppointmentCreate'}
+      responses:
+        '201':
+          description: Appointment booked
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Appointment'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /appointments/{appointmentId}:
+    get:
+      summary: Get an appointment
+      parameters:
+      - in: path
+        name: appointmentId
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Appointment detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Appointment'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /appointments/{appointmentId}/check-in:
+    post:
+      summary: Check in a booked or confirmed appointment
+      description: Reception or hospital administrators check in the appointment. The backend serializes concurrent 
+        check-in attempts with a pessimistic row lock.
+      parameters:
+      - in: path
+        name: appointmentId
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Appointment checked in
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Appointment'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /patients/{patientId}/encounters:
+    get:
+      summary: List encounter history for a patient
+      parameters:
+      - $ref: '#/components/parameters/PatientId'
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+      responses:
+        '200':
+          description: Encounters visible in the caller's authorized branches
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Encounter'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /encounters:
+    post:
+      summary: Open a clinical encounter
+      description: Only the authenticated active doctor can open an encounter. A linked appointment must match the 
+        patient, doctor, department and branch and must be checked in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/EncounterCreate'}
+      responses:
+        '201':
+          description: Encounter opened
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Encounter'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /encounters/{encounterId}:
+    get:
+      summary: Get a clinical encounter
+      parameters:
+      - $ref: '#/components/parameters/EncounterId'
+      responses:
+        '200':
+          description: Encounter details
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Encounter'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /encounters/{encounterId}/vitals:
+    parameters:
+    - $ref: '#/components/parameters/EncounterId'
+    get:
+      summary: List encounter vital-sign observations
+      responses:
+        '200':
+          description: Vital-sign observations, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/VitalSign'}
+    post:
+      summary: Record a vital-sign observation
+      description: Nurses and the attending doctor may record observations. At least one measurement is required; 
+        recorded observations are append-only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/VitalSignCreate'}
+      responses:
+        '201':
+          description: Vital-sign observation recorded
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/VitalSign'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /encounters/{encounterId}/notes:
+    parameters:
+    - $ref: '#/components/parameters/EncounterId'
+    get:
+      summary: List encounter clinical notes
+      responses:
+        '200':
+          description: Notes with draft and signature status
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/ClinicalNote'}
+    post:
+      summary: Create a clinical note draft
+      description: Doctors may create clinical note types; nurses may create PROGRESS notes only. Authors sign their own
+        drafts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ClinicalNoteCreate'}
+      responses:
+        '201':
+          description: Draft note created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClinicalNote'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /encounters/{encounterId}/notes/{noteId}/sign:
+    post:
+      summary: Sign an authored draft clinical note
+      parameters:
+      - $ref: '#/components/parameters/EncounterId'
+      - $ref: '#/components/parameters/NoteId'
+      responses:
+        '200':
+          description: Signed note
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClinicalNote'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /encounters/{encounterId}/notes/{noteId}/amendments:
+    post:
+      summary: Create an amendment draft for a previously signed clinical note
+      description: The attending doctor creates a new draft amendment referencing the signed original. The original note
+        is never overwritten.
+      parameters:
+      - $ref: '#/components/parameters/EncounterId'
+      - $ref: '#/components/parameters/NoteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ClinicalNoteCreate'}
+      responses:
+        '201':
+          description: Amendment draft created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ClinicalNote'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /encounters/{encounterId}/diagnoses:
+    parameters:
+    - $ref: '#/components/parameters/EncounterId'
+    get:
+      summary: List diagnoses recorded for the encounter
+      responses:
+        '200':
+          description: Encounter diagnoses
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/EncounterDiagnosis'}
+    post:
+      summary: Record a diagnosis from the diagnosis catalog
+      description: The attending doctor records a diagnosis. At most one primary diagnosis is allowed per encounter.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DiagnosisCreate'}
+      responses:
+        '201':
+          description: Diagnosis recorded
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EncounterDiagnosis'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /encounters/{encounterId}/diagnoses/{encounterDiagnosisId}:
+    patch:
+      summary: Update a recorded diagnosis clinical status
+      parameters:
+      - $ref: '#/components/parameters/EncounterId'
+      - in: path
+        name: encounterDiagnosisId
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clinicalStatus: {type: string, enum: [PROVISIONAL, CONFIRMED, RULED_OUT]}
+              required: [clinicalStatus]
+      responses:
+        '200':
+          description: Updated diagnosis status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EncounterDiagnosis'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /encounters/{encounterId}/complete:
+    post:
+      summary: Complete an active clinical encounter
+      description: Only the attending doctor can complete the encounter. All draft notes must be signed. A linked 
+        checked-in appointment is completed in the same transaction.
+      parameters:
+      - $ref: '#/components/parameters/EncounterId'
+      responses:
+        '200':
+          description: Encounter completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Encounter'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /encounters/{encounterId}/care-team:
+    parameters:
+    - $ref: '#/components/parameters/EncounterId'
+    get:
+      summary: List assigned nursing care-team members
+      description: The attending doctor or a nurse already assigned to the encounter may view the care team.
+      responses:
+        '200':
+          description: Care-team assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/CareTeamAssignment'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Assign an active nurse to an encounter
+      description: Only the attending doctor or hospital manager may assign a nurse. The assigned account must have the 
+        NURSE role and belong to the same branch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CareTeamAssignmentCreate'}
+      responses:
+        '201':
+          description: Nurse assigned
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CareTeamAssignment'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /encounters/{encounterId}/care-team/{assignmentId}/release:
+    post:
+      summary: Release an active nursing assignment
+      parameters:
+      - $ref: '#/components/parameters/EncounterId'
+      - $ref: '#/components/parameters/AssignmentId'
+      responses:
+        '200':
+          description: Assignment released
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CareTeamAssignment'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /encounters/{encounterId}/lab-orders:
+    parameters:
+    - $ref: '#/components/parameters/EncounterId'
+    get:
+      summary: List laboratory orders for an encounter
+      description: Only the attending doctor may view this encounter. Result values are included only after independent 
+        laboratory review and release.
+      responses:
+        '200':
+          description: Laboratory orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/LabOrder'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Create a laboratory order
+      description: Only the active attending doctor may order tests for an active encounter. Outbox events are committed
+        with the order and later published through JMS.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LabOrderCreate'}
+      responses:
+        '201':
+          description: Laboratory order created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LabOrder'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /lab-tests:
+    get:
+      summary: Search active laboratory test catalogue
+      parameters:
+      - in: query
+        name: q
+        required: true
+        schema: {type: string, minLength: 2, maxLength: 80}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+      responses:
+        '200':
+          description: Matching tests
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/LabTest'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /lab-orders:
+    get:
+      summary: List laboratory orders in a selected authorized branch
+      description: Only active laboratory technicians and supervisors assigned to the laboratory department may use this
+        endpoint. The caller must have access to the branch.
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      - in: query
+        name: status
+        schema: {type: string, enum: [ORDERED, ACCEPTED, IN_PROGRESS, PARTIALLY_COMPLETED, COMPLETED, CANCELLED]}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 30}
+      responses:
+        '200':
+          description: Laboratory work queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/LabOrder'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /lab-orders/items/{itemId}/collect:
+    post:
+      summary: Record specimen collection
+      parameters:
+      - $ref: '#/components/parameters/LabItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                specimenCode: {type: string, minLength: 1, maxLength: 48}
+              required: [specimenCode]
+      responses:
+        '200':
+          description: Specimen collected
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LabOrderItem'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /lab-orders/items/{itemId}/start-processing:
+    post:
+      summary: Move a collected specimen into processing
+      parameters:
+      - $ref: '#/components/parameters/LabItemId'
+      responses:
+        '200':
+          description: Processing started
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LabOrderItem'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /lab-orders/items/{itemId}/result:
+    post:
+      summary: Record a laboratory result
+      parameters:
+      - $ref: '#/components/parameters/LabItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LabResultCreate'}
+      responses:
+        '200':
+          description: Result recorded, awaiting independent review
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LabResult'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /lab-orders/items/{itemId}/review-release:
+    post:
+      summary: Independently review and release a laboratory result
+      description: A LAB_SUPERVISOR different from the performer must review the result. Releasing the result creates a 
+        transactional outbox event for JMS notification.
+      parameters:
+      - $ref: '#/components/parameters/LabItemId'
+      responses:
+        '200':
+          description: Result reviewed and released
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LabResult'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /diagnoses:
+    get:
+      summary: Search active diagnosis catalog entries
+      description: The current V004 development seed contains DEMO-only synthetic entries, not a real clinical 
+        terminology.
+      parameters:
+      - in: query
+        name: q
+        required: true
+        schema: {type: string, minLength: 2}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+      responses:
+        '200':
+          description: Matching catalog entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/DiagnosisCatalogItem'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /medications:
+    get:
+      summary: Search the active medication catalogue
+      description: Available to attending doctors and pharmacy users. Controlled medications are intentionally outside 
+        this academic implementation.
+      parameters:
+      - in: query
+        name: q
+        required: true
+        schema: {type: string, minLength: 2, maxLength: 80}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+      responses:
+        '200':
+          description: Matching active medication catalogue entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Medication'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /encounters/{encounterId}/prescriptions:
+    parameters:
+    - $ref: '#/components/parameters/EncounterId'
+    get:
+      summary: List prescriptions written for an encounter
+      description: Only the attending doctor with active patient access may view encounter prescriptions.
+      responses:
+        '200':
+          description: Encounter prescriptions and dispensed quantities
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Prescription'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Create a prescription for an active encounter
+      description: Only the active attending doctor may prescribe. Each medication may appear once per prescription. 
+        Controlled medications are out of scope; clinical dosing remains the clinician's responsibility.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PrescriptionCreate'}
+      responses:
+        '201':
+          description: Prescription created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Prescription'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /pharmacy/locations:
+    get:
+      summary: List active pharmacy inventory locations in an authorized branch
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      responses:
+        '200':
+          description: Pharmacy locations available to the pharmacist
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/PharmacyLocation'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /pharmacy/stock:
+    get:
+      summary: List available medication stock
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      - in: query
+        name: q
+        schema: {type: string, minLength: 2, maxLength: 80}
+      - in: query
+        name: locationId
+        schema: {type: string, format: uuid}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        '200':
+          description: Available quantities from unexpired batches, optionally filtered to one pharmacy location
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/StockAvailability'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+  /pharmacy/prescriptions:
+    get:
+      summary: List active prescriptions waiting for pharmacy dispensing
+      description: Only pharmacists assigned to the pharmacy department and current branch can use this queue. Patient 
+        details are minimized to MRN and display name for dispensing workflow.
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      - in: query
+        name: status
+        schema: {type: string, enum: [ACTIVE, PARTIALLY_DISPENSED, DISPENSED, CANCELLED]}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 30}
+      responses:
+        '200':
+          description: Branch-scoped prescription queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Prescription'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /pharmacy/prescriptions/{prescriptionId}/dispenses:
+    post:
+      summary: Dispense prescribed medication using FEFO batch allocation
+      description: The pharmacist must belong to an active pharmacy department in the prescription branch. Quantity, 
+        stock balances, dispense rows, stock movements and prescription status are committed in one transaction. Retries
+        must use the same Idempotency-Key and identical payload.
+      parameters:
+      - in: path
+        name: prescriptionId
+        required: true
+        schema: {type: string, format: uuid}
+      - $ref: '#/components/parameters/BranchQueryId'
+      - in: header
+        name: Idempotency-Key
+        required: true
+        description: Client-generated key, 16–80 safe characters; reusing it with a different request returns 409.
+        schema: {type: string, minLength: 16, maxLength: 80, pattern: '^[A-Za-z0-9._:-]+$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DispenseCreate'}
+      responses:
+        '201':
+          description: Dispense posted; repeated identical requests return the same dispense resource
+          headers:
+            Location: {schema: {type: string, format: uri-reference}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Dispense'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /pharmacy/dispenses/{dispenseId}:
+    get:
+      summary: Retrieve a posted dispense with its FEFO batch allocations
+      parameters:
+      - in: path
+        name: dispenseId
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Posted dispense detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Dispense'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /admissions:
+    post:
+      summary: Admit a patient from an active inpatient or emergency encounter
+      description: Creates an admission in one transaction and optionally assigns an initial bed. Doctors may admit only
+        their own active encounter.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdmissionCreate'}
+      responses:
+        '201':
+          description: Admission created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Admission'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /admissions/active:
+    get:
+      summary: List active admissions visible to the authenticated staff member
+      parameters:
+      - in: query
+        name: branchId
+        required: true
+        schema: {type: string, format: uuid}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        '200':
+          description: Active admissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Admission'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /admissions/beds:
+    get:
+      summary: List branch beds and their current occupancy state
+      parameters:
+      - in: query
+        name: branchId
+        required: true
+        schema: {type: string, format: uuid}
+      - in: query
+        name: wardId
+        schema: {type: string, format: uuid}
+      - in: query
+        name: availableOnly
+        schema: {type: boolean, default: false}
+      responses:
+        '200':
+          description: Bed inventory
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Bed'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /admissions/{admissionId}/bed-assignments:
+    post:
+      summary: Assign an available bed to an active admission
+      parameters:
+      - in: path
+        name: admissionId
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BedAssign'}
+      responses:
+        '200':
+          description: Admission with current bed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Admission'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /admissions/{admissionId}/bed-transfers:
+    post:
+      summary: Transfer an admitted patient to another available bed
+      parameters:
+      - in: path
+        name: admissionId
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/BedAssign'}
+      responses:
+        '200':
+          description: Admission after bed transfer
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Admission'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /admissions/{admissionId}/discharge:
+    post:
+      summary: Discharge an active admission and release its current bed
+      parameters:
+      - in: path
+        name: admissionId
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Discharge'}
+      responses:
+        '200':
+          description: Discharged admission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Admission'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /billing/invoices:
+    post:
+      summary: Create a draft invoice for encounter services
+      description: Prices are taken from the active service catalogue, not from client-supplied prices. This increment 
+        bills service catalogue lines; medication charge integration is not yet included.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InvoiceCreate'}
+      responses:
+        '201':
+          description: Draft invoice
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Invoice'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    get:
+      summary: List recent branch invoices
+      parameters:
+      - in: query
+        name: branchId
+        required: true
+        schema: {type: string, format: uuid}
+      - in: query
+        name: status
+        schema: {type: string, enum: [DRAFT, ISSUED, PARTIALLY_PAID, PAID, VOID]}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        '200':
+          description: Invoices
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Invoice'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /billing/invoices/services:
+    get:
+      summary: Search active billable services for a branch
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      - in: query
+        name: q
+        schema: {type: string, minLength: 2, maxLength: 80}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        '200':
+          description: Active services in the branch billing currency
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/BillableService'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /billing/invoices/eligible-encounters:
+    get:
+      summary: Search encounters available for billing in a branch
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      - in: query
+        name: q
+        required: true
+        schema: {type: string, minLength: 2, maxLength: 80}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 50, default: 20}
+      responses:
+        '200':
+          description: Non-cancelled encounters whose patients are accessible in the branch
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/BillableEncounter'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /billing/invoices/{invoiceId}:
+    get:
+      summary: Retrieve invoice details and posted payments
+      parameters:
+      - in: path
+        name: invoiceId
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Invoice details
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Invoice'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /billing/invoices/{invoiceId}/issue:
+    post:
+      summary: Issue a draft invoice after validating line totals
+      parameters:
+      - in: path
+        name: invoiceId
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Issued invoice
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Invoice'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /billing/invoices/{invoiceId}/payments:
+    post:
+      summary: Post a payment against an issued invoice
+      description: The invoice row is locked during payment posting and database triggers prevent currency mismatch and 
+        overpayment. Posted receipt records are immutable in this increment.
+      parameters:
+      - in: path
+        name: invoiceId
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PaymentCreate'}
+      responses:
+        '201':
+          description: Invoice after payment posting
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Invoice'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /analytics/dashboard:
+    get:
+      summary: Read branch operational dashboard
+      description: Returns aggregated, non-patient-identifying operational indicators for the branch-local calendar day.
+        A read request does not write snapshots or generate decision cards.
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      responses:
+        '200':
+          description: Aggregated operational metrics
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OperationalDashboard'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /analytics/dashboard/refresh:
+    post:
+      summary: Refresh metric snapshots and generate rule-based decision cards
+      description: Management-only operation. Recalculates branch metrics, upserts daily snapshots and creates 
+        explainable cards using configured warning thresholds. Repeated refreshes do not create duplicate cards for the 
+        same branch and metric window.
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      responses:
+        '200':
+          description: Refreshed dashboard metrics
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OperationalDashboard'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /analytics/decision-cards:
+    get:
+      summary: List branch decision cards
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      - in: query
+        name: openOnly
+        schema: {type: boolean, default: true}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 30}
+      responses:
+        '200':
+          description: Decision cards ordered by severity and generation time
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/DecisionCard'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /analytics/decision-cards/{cardId}/status:
+    patch:
+      summary: Change decision card workflow status
+      parameters:
+      - in: path
+        name: cardId
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DecisionCardStatusUpdate'}
+      responses:
+        '200':
+          description: Updated decision card
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DecisionCard'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /security/me:
+    get:
+      summary: Get the authenticated user's own hospital identity and branch memberships
+      description: Returns only the caller's active database account mapping, role codes and assigned branch IDs. 
+        Passwords and credential material are never returned.
+      responses:
+        '200':
+          description: Current authenticated session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CurrentSession'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /procurement/suppliers:
+    get:
+      summary: Search active and inactive non-blocked suppliers
+      parameters:
+      - in: query
+        name: q
+        schema: {type: string, minLength: 2, maxLength: 80}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        '200':
+          description: Supplier directory
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Supplier'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Register a supplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SupplierCreate'}
+      responses:
+        '201':
+          description: Supplier created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Supplier'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /procurement/locations:
+    get:
+      summary: List active stock receiving locations in a branch
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      responses:
+        '200':
+          description: Main store and pharmacy locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/InventoryLocation'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /procurement/purchase-orders:
+    get:
+      summary: List branch purchase orders
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      - in: query
+        name: status
+        schema: {type: string, enum: [DRAFT, SUBMITTED, APPROVED, ORDERED, PARTIALLY_RECEIVED, RECEIVED, REJECTED, 
+              CANCELLED]}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+      responses:
+        '200':
+          description: Purchase orders and line-level received quantities
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/PurchaseOrder'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Create a draft purchase order
+      description: Supplier and medication references are resolved by the backend. Prices and totals are calculated and 
+        validated by the service and database.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PurchaseOrderCreate'}
+      responses:
+        '201':
+          description: Draft purchase order created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PurchaseOrder'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /procurement/purchase-orders/{orderId}/submit:
+    post:
+      summary: Submit a draft purchase order for approval
+      parameters:
+      - in: path
+        name: orderId
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Submitted purchase order
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PurchaseOrder'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /procurement/purchase-orders/{orderId}/approval:
+    post:
+      summary: Approve or reject a submitted purchase order
+      parameters:
+      - in: path
+        name: orderId
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PurchaseOrderApproval'}
+      responses:
+        '200':
+          description: Updated purchase order approval status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PurchaseOrder'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /procurement/purchase-orders/{orderId}/order:
+    post:
+      summary: Mark an approved purchase order as sent to the supplier
+      parameters:
+      - in: path
+        name: orderId
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Purchase order marked as ordered
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PurchaseOrder'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /procurement/purchase-orders/{orderId}/receipts:
+    post:
+      summary: Receive goods and post accepted quantities to the stock ledger
+      description: Each line is checked against the remaining ordered quantity. Accepted quantities require a batch and 
+        future expiry date. Rejected quantities require a reason. Receipt, stock balances, movements and purchase-order 
+        quantities commit atomically.
+      parameters:
+      - in: path
+        name: orderId
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GoodsReceiptCreate'}
+      responses:
+        '201':
+          description: Goods receipt posted to inventory
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/GoodsReceipt'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+
+  /accounting/accounts:
+    get:
+      summary: List active branch chart-of-account entries
+      parameters:
+      - {in: query, name: branchId, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Branch chart of accounts
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/Account'}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /accounting/trial-balance:
+    get:
+      summary: Get the cumulative trial balance as of a date
+      parameters:
+      - {in: query, name: branchId, required: true, schema: {type: string, format: uuid}}
+      - {in: query, name: asOf, required: false, schema: {type: string, format: date}}
+      responses:
+        '200':
+          description: Debit and credit movement totals and closing balances
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TrialBalance'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /accounting/journals/{id}:
+    get:
+      summary: Get a journal entry and its lines
+      parameters:
+      - {in: path, name: id, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Journal entry detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JournalEntry'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /accounting/journals:
+    get:
+      summary: List recent branch journal entries
+      parameters:
+      - {in: query, name: branchId, required: true, schema: {type: string, format: uuid}}
+      - {in: query, name: fromDate, required: false, schema: {type: string, format: date}}
+      - {in: query, name: toDate, required: false, schema: {type: string, format: date}}
+      - {in: query, name: limit, required: false, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+      responses:
+        '200':
+          description: Journal entries with lines
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/JournalEntry'}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Create a balanced manual journal draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ManualJournalCreate'}
+      responses:
+        '201':
+          description: Draft journal entry
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JournalEntry'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /accounting/journals/{id}/post:
+    post:
+      summary: Post a draft journal entry
+      parameters:
+      - {in: path, name: id, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Posted journal entry
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JournalEntry'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /accounting/journals/{id}/reversal:
+    post:
+      summary: Create a draft reversal for a posted journal entry
+      parameters:
+      - {in: path, name: id, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '201':
+          description: Reversal draft; must be posted separately
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/JournalEntry'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /admin/staff:
+    get:
+      summary: List staff members in an authorized branch
+      description: Hospital administrators only. Search is limited to employee number, name and job title.
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      - in: query
+        name: q
+        schema: {type: string, maxLength: 80}
+      - in: query
+        name: status
+        schema: {type: string, enum: [ACTIVE, ON_LEAVE, SUSPENDED, TERMINATED]}
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 200, default: 100}
+      responses:
+        '200':
+          description: Staff directory for the selected branch
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/StaffMember'}}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Create a staff profile in an authorized branch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StaffCreate'}
+      responses:
+        '201':
+          description: Staff profile created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StaffMember'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /admin/staff/{staffId}:
+    put:
+      summary: Update staff profile and employment status
+      parameters:
+      - in: path
+        name: staffId
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StaffUpdate'}
+      responses:
+        '200':
+          description: Updated staff profile
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StaffMember'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /admin/roles:
+    get:
+      summary: List defined hospital role codes
+      responses:
+        '200':
+          description: Role catalogue; role codes must match GlassFish groups exactly
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/HospitalRole'}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /admin/accounts:
+    get:
+      summary: List accounts visible in an authorized branch
+      parameters:
+      - $ref: '#/components/parameters/BranchQueryId'
+      - in: query
+        name: limit
+        schema: {type: integer, minimum: 1, maximum: 200, default: 100}
+      responses:
+        '200':
+          description: Account summaries with only branch memberships visible to the current administrator
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/HospitalAccount'}}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Map a pre-created GlassFish File Realm user to a staff profile
+      description: The GlassFish principal and exact group list must be created outside the application first. The API 
+        stores account, role and branch mappings only; it never stores or changes the user's password.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AccountProvision'}
+      responses:
+        '201':
+          description: Hospital account mapping created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HospitalAccount'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /admin/accounts/{accountId}/status:
+    patch:
+      summary: Enable or disable a hospital account globally
+      description: A global change requires the administrator to have access to every branch assigned to the target 
+        account. It does not create, delete or change the GlassFish File Realm password.
+      parameters:
+      - in: path
+        name: accountId
+        required: true
+        schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AccountStatusChange'}
+      responses:
+        '200':
+          description: Updated hospital account status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/HospitalAccount'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /system/settings:
+    get:
+      summary: List effective operational settings for an authorized branch
+      parameters:
+      - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200':
+          description: Effective setting values and their source
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SystemSetting'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      summary: Update a whitelisted global or branch-specific operational setting
+      description: Global updates require HOSPITAL_ADMIN. Branch updates require HOSPITAL_ADMIN or HOSPITAL_MANAGER with
+        branch access. Values are range-checked by the backend and audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemSettingUpdate'
+      responses:
+        '200':
+          description: Updated effective settings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SystemSetting'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /audit-logs:
+    get:
+      summary: Search append-only audit events in one authorized branch
+      parameters:
+      - $ref: '#/components/parameters/BranchId'
+      - in: query
+        name: from
+        schema:
+          type: string
+          format: date-time
+        description: Inclusive ISO-8601 UTC start time.
+      - in: query
+        name: to
+        schema:
+          type: string
+          format: date-time
+        description: Inclusive ISO-8601 UTC end time.
+      - in: query
+        name: actionCode
+        schema:
+          type: string
+          maxLength: 80
+      - in: query
+        name: resourceType
+        schema:
+          type: string
+          maxLength: 80
+      - in: query
+        name: offset
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 30
+      responses:
+        '200':
+          description: Branch-scoped audit page; clinical note text and patient content are not returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /notifications:
+    get:
+      summary: List the authenticated user notification inbox
+      parameters:
+      - in: query
+        name: unreadOnly
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: offset
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      responses:
+        '200':
+          description: User-owned notifications only
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPage'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /notifications/unread-count:
+    get:
+      summary: Get the authenticated user unread notification count
+      responses:
+        '200':
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationUnreadCount'
+  /notifications/{notificationId}/read:
+    post:
+      summary: Mark one owned notification as read
+      parameters:
+      - in: path
+        name: notificationId
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Updated unread count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationUnreadCount'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /notifications/read-all:
+    post:
+      summary: Mark all notifications owned by the authenticated user as read
+      responses:
+        '200':
+          description: Updated unread count and number marked read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationUnreadCount'
+
+  /health/ready:
+    get:
+      summary: Check database and JMS readiness
+      description: Performs read-only probes against MySQL and the configured JMS connection factory. Returns HTTP 
+        200 when both are available, otherwise HTTP 503. Dependency error details are intentionally not exposed.
+      responses:
+        '200':
+          description: The application and required dependencies are ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReadiness'
+        '503':
+          description: The application is running but one or more required dependencies are unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReadiness'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+  parameters:
+    BranchId:
+      in: path
+      name: branchId
+      required: true
+      schema: {type: string, format: uuid}
+    BranchQueryId:
+      in: query
+      name: branchId
+      required: true
+      schema: {type: string, format: uuid}
+    PatientId:
+      in: path
+      name: patientId
+      required: true
+      schema: {type: string, format: uuid}
+    EncounterId:
+      in: path
+      name: encounterId
+      required: true
+      schema: {type: string, format: uuid}
+    NoteId:
+      in: path
+      name: noteId
+      required: true
+      schema: {type: string, format: uuid}
+    AssignmentId:
+      in: path
+      name: assignmentId
+      required: true
+      schema: {type: string, format: uuid}
+    LabItemId:
+      in: path
+      name: itemId
+      required: true
+      schema: {type: string, format: uuid}
+  responses:
+    Unauthorized:
+      description: Authentication required.
+    Forbidden:
+      description: Authenticated caller lacks the required role.
+    BadRequest:
+      description: Validation or business rule failure.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Conflict:
+      description: Unique, reference or scheduling conflict.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+  schemas:
+    CurrentSession:
+      type: object
+      properties:
+        userId: {type: string, format: uuid}
+        staffId: {type: [string, 'null'], format: uuid}
+        username: {type: string}
+        roleCodes:
+          type: array
+          items: {type: string}
+        branchIds:
+          type: array
+          items: {type: string, format: uuid}
+        defaultBranchId: {type: string, format: uuid}
+      required: [userId, username, roleCodes, branchIds, defaultBranchId]
+    Branch:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        timezone: {type: string}
+        defaultCurrency: {type: string, minLength: 3, maxLength: 3}
+        active: {type: boolean}
+      required: [id, code, name, timezone, defaultCurrency, active]
+    Department:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        departmentType: {type: string}
+        active: {type: boolean}
+      required: [id, branchId, code, name, departmentType, active]
+    DoctorOption:
+      type: object
+      properties:
+        staffId: {type: string, format: uuid}
+        employeeNumber: {type: string}
+        fullName: {type: string}
+        departmentId: {type: [string, 'null'], format: uuid}
+        departmentName: {type: [string, 'null']}
+        specialty: {type: string}
+      required: [staffId, employeeNumber, fullName, specialty]
+    ContactInput:
+      type: object
+      properties:
+        contactType: {type: string, enum: [PATIENT, EMERGENCY, GUARDIAN, OTHER]}
+        contactName: {type: string, maxLength: 160}
+        relationship: {type: string, maxLength: 60}
+        phoneNumber: {type: string, maxLength: 32}
+        email: {type: string, format: email, maxLength: 254}
+        primary: {type: boolean, default: false}
+      required: [contactType]
+      anyOf:
+      - required: [phoneNumber]
+      - required: [email]
+    AllergyInput:
+      type: object
+      properties:
+        allergenName: {type: string, minLength: 1, maxLength: 160}
+        reaction: {type: string, maxLength: 500}
+        severity: {type: string, enum: [MILD, MODERATE, SEVERE, UNKNOWN]}
+        verificationStatus: {type: string, enum: [UNVERIFIED, CONFIRMED, ENTERED_IN_ERROR]}
+      required: [allergenName]
+    PatientRegistration:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid, description: Defaults to caller default branch when omitted; caller must 
+            hold branch access.}
+        mrn: {type: string, minLength: 1, maxLength: 32}
+        firstName: {type: string, minLength: 1, maxLength: 80}
+        middleName: {type: string, maxLength: 80}
+        lastName: {type: string, minLength: 1, maxLength: 80}
+        dateOfBirth: {type: string, format: date}
+        sex: {type: string, enum: [FEMALE, MALE, UNKNOWN, NOT_RECORDED]}
+        bloodGroup: {type: string, enum: [A+, A-, B+, B-, AB+, AB-, O+, O-]}
+        primaryPhone: {type: string, maxLength: 32}
+        email: {type: string, format: email, maxLength: 254}
+        addressText: {type: string, maxLength: 500}
+        preferredLanguage: {type: string, maxLength: 8, default: ar}
+        contacts:
+          type: array
+          maxItems: 10
+          items: {$ref: '#/components/schemas/ContactInput'}
+        allergies:
+          type: array
+          maxItems: 100
+          items: {$ref: '#/components/schemas/AllergyInput'}
+      required: [mrn, firstName, lastName, sex]
+    PatientUpdate:
+      type: object
+      properties:
+        firstName: {type: string, minLength: 1, maxLength: 80}
+        middleName: {type: string, maxLength: 80}
+        lastName: {type: string, minLength: 1, maxLength: 80}
+        dateOfBirth: {type: string, format: date}
+        sex: {type: string, enum: [FEMALE, MALE, UNKNOWN, NOT_RECORDED]}
+        bloodGroup: {type: string, enum: [A+, A-, B+, B-, AB+, AB-, O+, O-]}
+        primaryPhone: {type: string, maxLength: 32}
+        email: {type: string, format: email, maxLength: 254}
+        addressText: {type: string, maxLength: 500}
+        preferredLanguage: {type: string, maxLength: 8, default: ar}
+      required: [firstName, lastName, sex]
+    Patient:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        mrn: {type: string}
+        firstName: {type: string}
+        middleName: {type: [string, 'null']}
+        lastName: {type: string}
+        dateOfBirth: {type: [string, 'null'], format: date}
+        sex: {type: string}
+        bloodGroup: {type: [string, 'null']}
+        primaryPhone: {type: [string, 'null']}
+        email: {type: [string, 'null']}
+        addressText: {type: [string, 'null']}
+        preferredLanguage: {type: string}
+        status: {type: string}
+        createdAt: {type: string, format: date-time}
+        contacts: {type: array, items: {type: object}}
+        allergies: {type: array, items: {type: object}}
+    PatientPage:
+      type: object
+      properties:
+        items: {type: array, items: {type: object}}
+        total: {type: integer}
+        offset: {type: integer}
+        limit: {type: integer}
+      required: [items, total, offset, limit]
+    AppointmentListItem:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        patientId: {type: string, format: uuid}
+        patientMrn: {type: string}
+        patientName: {type: string}
+        doctorStaffId: {type: string, format: uuid}
+        doctorName: {type: string}
+        departmentId: {type: string, format: uuid}
+        departmentName: {type: string}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        reason: {type: [string, 'null']}
+        status: {type: string}
+      required: [id, branchId, patientId, patientMrn, patientName, doctorStaffId, doctorName, departmentId, 
+          departmentName, startsAt, endsAt, status]
+    AppointmentPage:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/AppointmentListItem'}}
+        total: {type: integer}
+        offset: {type: integer}
+        limit: {type: integer}
+      required: [items, total, offset, limit]
+    AppointmentCreate:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        patientId: {type: string, format: uuid}
+        doctorStaffId: {type: string, format: uuid}
+        departmentId: {type: string, format: uuid}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        reason: {type: string, maxLength: 500}
+      required: [branchId, patientId, doctorStaffId, departmentId, startsAt, endsAt]
+    Appointment:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        patientId: {type: string, format: uuid}
+        doctorStaffId: {type: string, format: uuid}
+        departmentId: {type: string, format: uuid}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        reason: {type: [string, 'null']}
+        status: {type: string}
+        createdAt: {type: string, format: date-time}
+    EncounterCreate:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        patientId: {type: string, format: uuid}
+        departmentId: {type: string, format: uuid}
+        appointmentId: {type: [string, 'null'], format: uuid}
+        encounterType: {type: string, enum: [OUTPATIENT, EMERGENCY, INPATIENT, FOLLOW_UP]}
+        chiefComplaint: {type: [string, 'null'], maxLength: 1000}
+      required: [branchId, patientId, departmentId, encounterType]
+    Encounter:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        patientId: {type: string, format: uuid}
+        appointmentId: {type: [string, 'null'], format: uuid}
+        departmentId: {type: string, format: uuid}
+        attendingDoctorId: {type: string, format: uuid}
+        encounterType: {type: string, enum: [OUTPATIENT, EMERGENCY, INPATIENT, FOLLOW_UP]}
+        status: {type: string, enum: [OPEN, IN_PROGRESS, COMPLETED, CANCELLED]}
+        chiefComplaint: {type: [string, 'null']}
+        startedAt: {type: string, format: date-time}
+        endedAt: {type: [string, 'null'], format: date-time}
+    VitalSignCreate:
+      type: object
+      properties:
+        temperatureC: {type: [number, 'null'], minimum: 25, maximum: 45}
+        systolicMmhg: {type: [integer, 'null'], minimum: 20, maximum: 300}
+        diastolicMmhg: {type: [integer, 'null'], minimum: 10, maximum: 200}
+        pulseBpm: {type: [integer, 'null'], minimum: 1, maximum: 300}
+        respiratoryRate: {type: [integer, 'null'], minimum: 1, maximum: 100}
+        oxygenSaturation: {type: [number, 'null'], minimum: 0, maximum: 100}
+        weightKg: {type: [number, 'null'], exclusiveMinimum: 0, maximum: 1000}
+        heightCm: {type: [number, 'null'], exclusiveMinimum: 0, maximum: 300}
+        notes: {type: [string, 'null'], maxLength: 500}
+    VitalSign:
+      allOf:
+      - $ref: '#/components/schemas/VitalSignCreate'
+      - type: object
+        properties:
+          id: {type: string, format: uuid}
+          encounterId: {type: string, format: uuid}
+          measuredBy: {type: string, format: uuid}
+          measuredAt: {type: string, format: date-time}
+    ClinicalNoteCreate:
+      type: object
+      properties:
+        noteType: {type: string, enum: [HISTORY, EXAMINATION, ASSESSMENT, PLAN, PROGRESS, DISCHARGE, OTHER]}
+        noteText: {type: string, minLength: 1, maxLength: 20000}
+      required: [noteType, noteText]
+    ClinicalNote:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        encounterId: {type: string, format: uuid}
+        authorStaffId: {type: string, format: uuid}
+        noteType: {type: string}
+        noteText: {type: string}
+        noteStatus: {type: string, enum: [DRAFT, SIGNED, AMENDED]}
+        createdAt: {type: string, format: date-time}
+        signedAt: {type: [string, 'null'], format: date-time}
+        amendedFromId: {type: [string, 'null'], format: uuid}
+    DiagnosisCreate:
+      type: object
+      properties:
+        diagnosisId: {type: string, format: uuid}
+        primary: {type: boolean, default: false}
+        clinicalStatus: {type: string, enum: [PROVISIONAL, CONFIRMED, RULED_OUT]}
+      required: [diagnosisId, clinicalStatus]
+    EncounterDiagnosis:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        diagnosisId: {type: string, format: uuid}
+        codeSystem: {type: string}
+        diagnosisCode: {type: string}
+        description: {type: string}
+        primary: {type: boolean}
+        clinicalStatus: {type: string, enum: [PROVISIONAL, CONFIRMED, RULED_OUT]}
+        recordedAt: {type: string, format: date-time}
+    DiagnosisCatalogItem:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        codeSystem: {type: string}
+        diagnosisCode: {type: string}
+        description: {type: string}
+        active: {type: boolean}
+    CareTeamAssignmentCreate:
+      type: object
+      properties:
+        staffId: {type: string, format: uuid}
+        careRole: {type: string, enum: [PRIMARY_NURSE, SUPPORT_NURSE]}
+      required: [staffId, careRole]
+    CareTeamAssignment:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        encounterId: {type: string, format: uuid}
+        staffId: {type: string, format: uuid}
+        staffName: {type: string}
+        careRole: {type: string, enum: [PRIMARY_NURSE, SUPPORT_NURSE]}
+        assignedBy: {type: string, format: uuid}
+        assignedAt: {type: string, format: date-time}
+        releasedAt: {type: [string, 'null'], format: date-time}
+    LabTest:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        specimenType: {type: [string, 'null']}
+        resultUnit: {type: [string, 'null']}
+        referenceRange: {type: [string, 'null']}
+        standardPrice: {type: number}
+        currencyCode: {type: string, minLength: 3, maxLength: 3}
+        expectedMinutes: {type: [integer, 'null']}
+    LabOrderCreate:
+      type: object
+      properties:
+        priority: {type: string, enum: [ROUTINE, URGENT, STAT], default: ROUTINE}
+        clinicalQuestion: {type: [string, 'null'], maxLength: 500}
+        testIds:
+          type: array
+          minItems: 1
+          maxItems: 25
+          uniqueItems: true
+          items: {type: string, format: uuid}
+      required: [testIds]
+    LabOrder:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        encounterId: {type: string, format: uuid}
+        orderedBy: {type: string, format: uuid}
+        patientMrn: {type: string, maxLength: 32}
+        patientDisplayName: {type: string, maxLength: 244}
+        priority: {type: string, enum: [ROUTINE, URGENT, STAT]}
+        status: {type: string, enum: [ORDERED, ACCEPTED, IN_PROGRESS, PARTIALLY_COMPLETED, COMPLETED, CANCELLED]}
+        clinicalQuestion: {type: [string, 'null']}
+        orderedAt: {type: string, format: date-time}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/LabOrderItem'}
+    LabOrderItem:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        testId: {type: string, format: uuid}
+        testCode: {type: string}
+        testName: {type: string}
+        status: {type: string, enum: [PENDING, COLLECTED, PROCESSING, RESULTED, REVIEWED, CANCELLED]}
+        specimenCode: {type: [string, 'null']}
+        collectedAt: {type: [string, 'null'], format: date-time}
+        collectedBy: {type: [string, 'null'], format: uuid}
+        result: {anyOf: [$ref: '#/components/schemas/LabResult', type: 'null']}
+    LabResultCreate:
+      type: object
+      properties:
+        resultText: {type: [string, 'null'], maxLength: 4000}
+        resultNumeric:
+          type: [number, 'null']
+          description: Must fit MySQL DECIMAL(16,5), with at most 11 integer and 5 fractional digits.
+        resultUnit: {type: [string, 'null'], maxLength: 40}
+        referenceRange: {type: [string, 'null'], maxLength: 120}
+        abnormalFlag: {type: string, enum: [LOW, NORMAL, HIGH, CRITICAL, UNKNOWN], default: UNKNOWN}
+    LabResult:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        labOrderItemId: {type: string, format: uuid}
+        resultText: {type: [string, 'null']}
+        resultNumeric:
+          type: [number, 'null']
+          description: Must fit MySQL DECIMAL(16,5), with at most 11 integer and 5 fractional digits.
+        resultUnit: {type: [string, 'null']}
+        referenceRange: {type: [string, 'null']}
+        abnormalFlag: {type: string, enum: [LOW, NORMAL, HIGH, CRITICAL, UNKNOWN]}
+        performedBy: {type: [string, 'null'], format: uuid}
+        reviewedBy: {type: [string, 'null'], format: uuid}
+        performedAt: {type: [string, 'null'], format: date-time}
+        reviewedAt: {type: [string, 'null'], format: date-time}
+        releasedAt: {type: [string, 'null'], format: date-time}
+    Medication:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        genericName: {type: string}
+        brandName: {type: [string, 'null']}
+        strength: {type: [string, 'null']}
+        dosageForm: {type: [string, 'null']}
+        route: {type: [string, 'null']}
+        dispensingUnit: {type: string}
+        controlled: {type: boolean}
+      required: [id, code, genericName, dispensingUnit, controlled]
+    PrescriptionCreate:
+      type: object
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items: {$ref: '#/components/schemas/PrescriptionItemCreate'}
+      required: [items]
+    PrescriptionItemCreate:
+      type: object
+      properties:
+        medicationId: {type: string, format: uuid}
+        dose: {type: string, minLength: 1, maxLength: 80}
+        route: {type: [string, 'null'], maxLength: 60}
+        frequency: {type: string, minLength: 1, maxLength: 100}
+        durationDays: {type: [integer, 'null'], minimum: 1}
+        quantityPrescribed: {type: number, exclusiveMinimum: 0, multipleOf: 0.001}
+        instructions: {type: [string, 'null'], maxLength: 500}
+      required: [medicationId, dose, frequency, quantityPrescribed]
+    Prescription:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        encounterId: {type: string, format: uuid}
+        prescriberStaffId: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        patientMrn: {type: string}
+        patientDisplayName: {type: string}
+        status: {type: string, enum: [ACTIVE, PARTIALLY_DISPENSED, DISPENSED, CANCELLED]}
+        orderedAt: {type: string, format: date-time}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/PrescriptionItem'}
+      required: [id, encounterId, prescriberStaffId, branchId, patientMrn, patientDisplayName, status, orderedAt, items]
+    PrescriptionItem:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        medicationId: {type: string, format: uuid}
+        medicationCode: {type: string}
+        medicationName: {type: string}
+        brandName: {type: [string, 'null']}
+        strength: {type: [string, 'null']}
+        dosageForm: {type: [string, 'null']}
+        dispensingUnit: {type: string}
+        dose: {type: string}
+        route: {type: [string, 'null']}
+        frequency: {type: string}
+        durationDays: {type: [integer, 'null']}
+        quantityPrescribed: {type: number}
+        quantityDispensed: {type: number}
+        quantityRemaining: {type: number}
+        instructions: {type: [string, 'null']}
+    PharmacyLocation:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+      required: [id, code, name]
+    StockAvailability:
+      type: object
+      properties:
+        medicationId: {type: string, format: uuid}
+        medicationCode: {type: string}
+        medicationName: {type: string}
+        dispensingUnit: {type: string}
+        quantityAvailable: {type: number}
+      required: [medicationId, medicationCode, medicationName, dispensingUnit, quantityAvailable]
+    DispenseCreate:
+      type: object
+      properties:
+        locationId: {type: string, format: uuid}
+        items:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items: {$ref: '#/components/schemas/DispenseItemCreate'}
+      required: [locationId, items]
+    DispenseItemCreate:
+      type: object
+      properties:
+        prescriptionItemId: {type: string, format: uuid}
+        quantity: {type: number, exclusiveMinimum: 0, multipleOf: 0.001}
+      required: [prescriptionItemId, quantity]
+    Dispense:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        prescriptionId: {type: string, format: uuid}
+        inventoryLocationId: {type: string, format: uuid}
+        dispensedByStaffId: {type: string, format: uuid}
+        status: {type: string, enum: [DRAFT, POSTED, VOID]}
+        dispensedAt: {type: string, format: date-time}
+        idempotencyKey: {type: [string, 'null']}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/DispenseItem'}
+      required: [id, prescriptionId, inventoryLocationId, dispensedByStaffId, status, dispensedAt, items]
+    DispenseItem:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        prescriptionItemId: {type: string, format: uuid}
+        medicationId: {type: string, format: uuid}
+        medicationCode: {type: string}
+        medicationName: {type: string}
+        batchId: {type: string, format: uuid}
+        batchNumber: {type: string}
+        expiresOn: {type: string, format: date}
+        quantityDispensed: {type: number}
+      required: [id, prescriptionItemId, medicationId, medicationCode, medicationName, batchId, batchNumber, expiresOn, 
+          quantityDispensed]
+    AdmissionCreate:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        encounterId: {type: string, format: uuid}
+        admissionType: {type: string, enum: [ELECTIVE, EMERGENCY, TRANSFER, OBSERVATION]}
+        admissionReason: {type: [string, 'null'], maxLength: 1000}
+        initialBedId: {type: [string, 'null'], format: uuid}
+        bedAssignmentReason: {type: [string, 'null'], maxLength: 500}
+      required: [branchId, encounterId, admissionType]
+    BedAssign:
+      type: object
+      properties:
+        bedId: {type: string, format: uuid}
+        reason: {type: [string, 'null'], maxLength: 500}
+      required: [bedId]
+    Discharge:
+      type: object
+      properties:
+        disposition: {type: string, enum: [HOME, TRANSFERRED, AMA, DECEASED, OTHER]}
+        summary: {type: [string, 'null'], maxLength: 10000}
+      required: [disposition]
+    Bed:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        wardId: {type: string, format: uuid}
+        wardName: {type: string}
+        roomNumber: {type: string}
+        bedNumber: {type: string}
+        bedType: {type: string}
+        operationalStatus: {type: string, enum: [AVAILABLE, CLEANING, OUT_OF_SERVICE]}
+        occupied: {type: boolean}
+        available: {type: boolean}
+      required: [id, branchId, wardId, wardName, roomNumber, bedNumber, bedType, operationalStatus, occupied, available]
+    Admission:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        admissionNumber: {type: string}
+        patientId: {type: string, format: uuid}
+        patientMrn: {type: string}
+        patientName: {type: string}
+        encounterId: {type: string, format: uuid}
+        attendingDoctorId: {type: string, format: uuid}
+        attendingDoctorName: {type: string}
+        admissionType: {type: string}
+        status: {type: string, enum: [ADMITTED, DISCHARGED, CANCELLED]}
+        reason: {type: [string, 'null']}
+        admittedAt: {type: string, format: date-time}
+        dischargedAt: {type: [string, 'null'], format: date-time}
+        dischargeDisposition: {type: [string, 'null']}
+        dischargeSummary: {type: [string, 'null']}
+        currentBedId: {type: [string, 'null'], format: uuid}
+        currentBedLabel: {type: [string, 'null']}
+      required: [id, branchId, admissionNumber, patientId, patientMrn, patientName, encounterId, attendingDoctorId, 
+          attendingDoctorName, admissionType, status, admittedAt]
+    BillableService:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        serviceType: {type: string}
+        standardPrice: {type: number}
+        currencyCode: {type: string, minLength: 3, maxLength: 3}
+      required: [id, code, name, serviceType, standardPrice, currencyCode]
+    BillableEncounter:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        patientId: {type: string, format: uuid}
+        patientMrn: {type: string}
+        patientName: {type: string}
+        encounterType: {type: string}
+        status: {type: string}
+        chiefComplaint: {type: [string, 'null']}
+        startedAt: {type: string, format: date-time}
+      required: [id, patientId, patientMrn, patientName, encounterType, status, startedAt]
+    InvoiceItemCreate:
+      type: object
+      properties:
+        serviceId: {type: string, format: uuid}
+        quantity: {type: number, exclusiveMinimum: 0, maximum: 1000, multipleOf: 0.001}
+      required: [serviceId, quantity]
+    InvoiceCreate:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        encounterId: {type: string, format: uuid}
+        items:
+          type: array
+          minItems: 1
+          maxItems: 40
+          items: {$ref: '#/components/schemas/InvoiceItemCreate'}
+      required: [branchId, encounterId, items]
+    PaymentCreate:
+      type: object
+      properties:
+        idempotencyKey: {type: string, minLength: 16, maxLength: 80}
+        amount: {type: number, exclusiveMinimum: 0, multipleOf: 0.01}
+        paymentMethod: {type: string, enum: [CASH, CARD, BANK_TRANSFER, INSURANCE, OTHER]}
+        transactionReference: {type: [string, 'null'], maxLength: 120}
+      required: [idempotencyKey, amount, paymentMethod]
+    InvoiceItem:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        serviceId: {type: [string, 'null'], format: uuid}
+        description: {type: string}
+        quantity: {type: number}
+        unitPrice: {type: number}
+        lineDiscount: {type: number}
+        lineTotal: {type: number}
+      required: [id, description, quantity, unitPrice, lineDiscount, lineTotal]
+    Payment:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        receiptNumber: {type: string}
+        amount: {type: number}
+        currencyCode: {type: string, minLength: 3, maxLength: 3}
+        paymentMethod: {type: string}
+        status: {type: string, enum: [POSTED, VOID, REFUNDED]}
+        transactionReference: {type: [string, 'null']}
+        paidAt: {type: string, format: date-time}
+      required: [id, receiptNumber, amount, currencyCode, paymentMethod, status, paidAt]
+    Invoice:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        invoiceNumber: {type: string}
+        patientId: {type: string, format: uuid}
+        patientMrn: {type: string}
+        patientName: {type: string}
+        encounterId: {type: [string, 'null'], format: uuid}
+        status: {type: string, enum: [DRAFT, ISSUED, PARTIALLY_PAID, PAID, VOID]}
+        currencyCode: {type: string, minLength: 3, maxLength: 3}
+        subtotal: {type: number}
+        discountAmount: {type: number}
+        taxAmount: {type: number}
+        totalAmount: {type: number}
+        paidAmount: {type: number}
+        balanceDue: {type: number}
+        issuedAt: {type: [string, 'null'], format: date-time}
+        createdAt: {type: string, format: date-time}
+        items: {type: array, items: {$ref: '#/components/schemas/InvoiceItem'}}
+        payments: {type: array, items: {$ref: '#/components/schemas/Payment'}}
+      required: [id, branchId, invoiceNumber, patientId, patientMrn, patientName, status, currencyCode, subtotal, 
+          discountAmount, taxAmount, totalAmount, paidAmount, balanceDue, createdAt, items, payments]
+    OperationalDashboard:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        branchName: {type: string}
+        currencyCode: {type: string}
+        periodStart: {type: string, format: date-time}
+        periodEnd: {type: string, format: date-time}
+        appointmentsToday: {type: integer, minimum: 0}
+        visitsToday: {type: integer, minimum: 0}
+        checkedInAppointments: {type: integer, minimum: 0}
+        activeAdmissions: {type: integer, minimum: 0}
+        labTurnaroundSamples: {type: integer, minimum: 0}
+        operationalBeds: {type: integer, minimum: 0}
+        occupiedBeds: {type: integer, minimum: 0}
+        bedOccupancyPercent: {type: number, minimum: 0}
+        pendingLabItems: {type: integer, minimum: 0}
+        averageLabTurnaroundMinutes: {type: number, minimum: 0}
+        lowStockMedicationPolicies: {type: integer, minimum: 0}
+        postedRevenueToday: {type: number, minimum: 0}
+        openDecisionCards: {type: integer, minimum: 0}
+      required: [branchId, branchName, currencyCode, periodStart, periodEnd, appointmentsToday, visitsToday, 
+          checkedInAppointments, activeAdmissions, labTurnaroundSamples, operationalBeds, occupiedBeds, 
+          bedOccupancyPercent, pendingLabItems, averageLabTurnaroundMinutes, lowStockMedicationPolicies, 
+          postedRevenueToday, openDecisionCards]
+    DecisionCardStatusUpdate:
+      type: object
+      properties:
+        status: {type: string, enum: [ACKNOWLEDGED, IN_PROGRESS, COMPLETED, DISMISSED]}
+      required: [status]
+    DecisionCard:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        cardCode: {type: string}
+        category: {type: string, enum: [WAIT_TIME, BED_OCCUPANCY, LAB_TAT, PHARMACY_STOCK, REVENUE, STAFFING, OTHER]}
+        severity: {type: string, enum: [INFO, WARNING, CRITICAL]}
+        status: {type: string, enum: [OPEN, ACKNOWLEDGED, IN_PROGRESS, COMPLETED, DISMISSED, EXPIRED]}
+        title: {type: string}
+        problemStatement: {type: string}
+        analysisSummary: {type: string}
+        recommendation: {type: string}
+        evidenceWindowStart: {type: string, format: date-time}
+        evidenceWindowEnd: {type: string, format: date-time}
+        observedValue: {type: [number, 'null']}
+        thresholdValue: {type: [number, 'null']}
+        unit: {type: [string, 'null']}
+        confidencePercent: {type: [number, 'null']}
+        assumptionsJson: {type: string, description: JSON array serialized as text}
+        expectedImpactJson: {type: string, description: JSON object serialized as text}
+        generatedAt: {type: string, format: date-time}
+      required: [id, cardCode, category, severity, status, title, problemStatement, analysisSummary, recommendation, 
+          evidenceWindowStart, evidenceWindowEnd, assumptionsJson, expectedImpactJson, generatedAt]
+    SupplierCreate:
+      type: object
+      properties:
+        supplierCode: {type: string, minLength: 1, maxLength: 32}
+        supplierName: {type: string, minLength: 1, maxLength: 180}
+        contactPerson: {type: [string, 'null'], maxLength: 140}
+        phoneNumber: {type: [string, 'null'], maxLength: 32}
+        email: {type: [string, 'null'], format: email, maxLength: 254}
+        address: {type: [string, 'null'], maxLength: 500}
+        registrationNumber: {type: [string, 'null'], maxLength: 80}
+      required: [supplierCode, supplierName]
+    Supplier:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        supplierCode: {type: string}
+        supplierName: {type: string}
+        contactPerson: {type: [string, 'null']}
+        phoneNumber: {type: [string, 'null']}
+        email: {type: [string, 'null'], format: email}
+        address: {type: [string, 'null']}
+        registrationNumber: {type: [string, 'null']}
+        status: {type: string, enum: [ACTIVE, INACTIVE, BLOCKED]}
+      required: [id, supplierCode, supplierName, status]
+    InventoryLocation:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+      required: [id, code, name]
+    PurchaseOrderItemCreate:
+      type: object
+      properties:
+        medicationId: {type: string, format: uuid}
+        quantity: {type: number, exclusiveMinimum: 0, multipleOf: 0.001}
+        unitOfMeasure: {type: [string, 'null'], maxLength: 32}
+        unitCost: {type: number, minimum: 0, multipleOf: 0.01}
+        lineDiscount: {type: number, minimum: 0, multipleOf: 0.01}
+      required: [medicationId, quantity, unitCost, lineDiscount]
+    PurchaseOrderCreate:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        supplierId: {type: string, format: uuid}
+        expectedDeliveryOn: {type: [string, 'null'], format: date}
+        notes: {type: [string, 'null'], maxLength: 1000}
+        items:
+          type: array
+          minItems: 1
+          maxItems: 40
+          items: {$ref: '#/components/schemas/PurchaseOrderItemCreate'}
+      required: [branchId, supplierId, items]
+    PurchaseOrderApproval:
+      type: object
+      properties:
+        approved: {type: boolean}
+        note: {type: [string, 'null'], maxLength: 500}
+      required: [approved]
+    PurchaseOrderItem:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        medicationId: {type: string, format: uuid}
+        medicationCode: {type: string}
+        medicationName: {type: string}
+        description: {type: string}
+        lineNumber: {type: integer}
+        orderedQuantity: {type: number}
+        receivedQuantity: {type: number}
+        remainingQuantity: {type: number}
+        unitOfMeasure: {type: string}
+        unitCost: {type: number}
+        lineDiscount: {type: number}
+        lineTotal: {type: number}
+      required: [id, medicationId, medicationCode, medicationName, description, lineNumber, orderedQuantity, 
+          receivedQuantity, remainingQuantity, unitOfMeasure, unitCost, lineDiscount, lineTotal]
+    PurchaseOrder:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        supplierId: {type: string, format: uuid}
+        supplierName: {type: string}
+        orderNumber: {type: string}
+        status: {type: string, enum: [DRAFT, SUBMITTED, APPROVED, ORDERED, PARTIALLY_RECEIVED, RECEIVED, REJECTED, 
+              CANCELLED]}
+        currencyCode: {type: string, minLength: 3, maxLength: 3}
+        subtotal: {type: number}
+        discountAmount: {type: number}
+        taxAmount: {type: number}
+        totalAmount: {type: number}
+        requestedBy: {type: string, format: uuid}
+        approvedBy: {type: [string, 'null'], format: uuid}
+        orderedAt: {type: [string, 'null'], format: date-time}
+        expectedDeliveryOn: {type: [string, 'null'], format: date}
+        notes: {type: [string, 'null']}
+        items: {type: array, items: {$ref: '#/components/schemas/PurchaseOrderItem'}}
+      required: [id, branchId, supplierId, supplierName, orderNumber, status, currencyCode, subtotal, discountAmount, 
+          taxAmount, totalAmount, requestedBy, items]
+    GoodsReceiptLineCreate:
+      type: object
+      properties:
+        purchaseOrderItemId: {type: string, format: uuid}
+        acceptedQuantity: {type: number, minimum: 0, multipleOf: 0.001}
+        rejectedQuantity: {type: number, minimum: 0, multipleOf: 0.001}
+        batchNumber: {type: [string, 'null'], maxLength: 80}
+        manufacturer: {type: [string, 'null'], maxLength: 160}
+        manufacturedOn: {type: [string, 'null'], format: date}
+        expiresOn: {type: [string, 'null'], format: date}
+        rejectionReason: {type: [string, 'null'], maxLength: 300}
+      required: [purchaseOrderItemId, acceptedQuantity, rejectedQuantity]
+    GoodsReceiptCreate:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        inventoryLocationId: {type: string, format: uuid}
+        supplierDeliveryReference: {type: [string, 'null'], maxLength: 100}
+        notes: {type: [string, 'null'], maxLength: 1000}
+        items:
+          type: array
+          minItems: 1
+          maxItems: 80
+          items: {$ref: '#/components/schemas/GoodsReceiptLineCreate'}
+      required: [branchId, inventoryLocationId, items]
+    GoodsReceipt:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        purchaseOrderId: {type: string, format: uuid}
+        orderNumber: {type: string}
+        receiptNumber: {type: string}
+        status: {type: string, enum: [DRAFT, POSTED, VOID]}
+        locationName: {type: string}
+        receivedAt: {type: string, format: date-time}
+        postedAt: {type: [string, 'null'], format: date-time}
+        lineCount: {type: integer}
+      required: [id, branchId, purchaseOrderId, orderNumber, receiptNumber, status, locationName, receivedAt, lineCount]
+    Account:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        accountCode: {type: string}
+        accountName: {type: string}
+        accountType: {type: string, enum: [ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE]}
+        normalBalance: {type: string, enum: [DEBIT, CREDIT]}
+        parentAccountId: {type: [string, 'null'], format: uuid}
+        controlAccount: {type: boolean}
+        allowsPosting: {type: boolean}
+        active: {type: boolean}
+      required: [id, branchId, accountCode, accountName, accountType, normalBalance, controlAccount, allowsPosting, 
+          active]
+    ManualJournalCreate:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        entryDate: {type: string, format: date}
+        description: {type: string, minLength: 1, maxLength: 1000}
+        lines:
+          type: array
+          minItems: 2
+          maxItems: 50
+          items:
+            type: object
+            properties:
+              accountCode: {type: string, minLength: 1, maxLength: 32}
+              debitAmount: {type: number, minimum: 0}
+              creditAmount: {type: number, minimum: 0}
+              memo: {type: [string, 'null'], maxLength: 500}
+            required: [accountCode, debitAmount, creditAmount]
+      required: [branchId, entryDate, description, lines]
+    JournalEntry:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        entryNumber: {type: string}
+        entryDate: {type: string, format: date}
+        description: {type: string}
+        sourceModule: {type: [string, 'null']}
+        sourceReferenceId: {type: [string, 'null'], format: uuid}
+        status: {type: string, enum: [DRAFT, POSTED, VOID]}
+        reversalOfEntryId: {type: [string, 'null'], format: uuid}
+        createdBy: {type: string, format: uuid}
+        postedBy: {type: [string, 'null'], format: uuid}
+        createdAt: {type: string, format: date-time}
+        postedAt: {type: [string, 'null'], format: date-time}
+        totalDebit: {type: number}
+        totalCredit: {type: number}
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              lineNumber: {type: integer}
+              accountCode: {type: string}
+              accountName: {type: string}
+              debitAmount: {type: number}
+              creditAmount: {type: number}
+              memo: {type: [string, 'null']}
+            required: [lineNumber, accountCode, accountName, debitAmount, creditAmount]
+      required: [id, branchId, entryNumber, entryDate, description, status, createdBy, createdAt, totalDebit, 
+          totalCredit, lines]
+    TrialBalance:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        asOfDate: {type: string, format: date}
+        currencyCode: {type: string, minLength: 3, maxLength: 3}
+        accounts: {type: array, items: {type: object}}
+        totalDebits: {type: number}
+        totalCredits: {type: number}
+        totalDebitBalances: {type: number}
+        totalCreditBalances: {type: number}
+        balanced: {type: boolean}
+      required: [branchId, asOfDate, currencyCode, accounts, totalDebits, totalCredits, totalDebitBalances, 
+          totalCreditBalances, balanced]
+    StaffCreate:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        departmentId: {type: string, format: uuid}
+        employeeNumber: {type: string, minLength: 1, maxLength: 32}
+        firstName: {type: string, minLength: 1, maxLength: 80}
+        lastName: {type: string, minLength: 1, maxLength: 80}
+        workEmail: {type: [string, 'null'], format: email, maxLength: 254}
+        phoneNumber: {type: [string, 'null'], maxLength: 32}
+        jobTitle: {type: [string, 'null'], maxLength: 100}
+        hiredOn: {type: [string, 'null'], format: date}
+      required: [branchId, departmentId, employeeNumber, firstName, lastName]
+    StaffUpdate:
+      type: object
+      properties:
+        departmentId: {type: [string, 'null'], format: uuid}
+        firstName: {type: string, minLength: 1, maxLength: 80}
+        lastName: {type: string, minLength: 1, maxLength: 80}
+        workEmail: {type: [string, 'null'], format: email, maxLength: 254}
+        phoneNumber: {type: [string, 'null'], maxLength: 32}
+        jobTitle: {type: [string, 'null'], maxLength: 100}
+        employmentStatus: {type: string, enum: [ACTIVE, ON_LEAVE, SUSPENDED, TERMINATED]}
+      required: [firstName, lastName, employmentStatus]
+    StaffMember:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        branchId: {type: string, format: uuid}
+        branchName: {type: string}
+        departmentId: {type: [string, 'null'], format: uuid}
+        departmentName: {type: [string, 'null']}
+        employeeNumber: {type: string}
+        firstName: {type: string}
+        lastName: {type: string}
+        workEmail: {type: [string, 'null'], format: email}
+        phoneNumber: {type: [string, 'null']}
+        jobTitle: {type: [string, 'null']}
+        employmentStatus: {type: string, enum: [ACTIVE, ON_LEAVE, SUSPENDED, TERMINATED]}
+        hiredOn: {type: [string, 'null'], format: date}
+        linkedUsername: {type: [string, 'null']}
+      required: [id, branchId, branchName, employeeNumber, firstName, lastName, employmentStatus]
+    HospitalRole:
+      type: object
+      properties:
+        code: {type: string}
+        name: {type: string}
+        description: {type: [string, 'null']}
+        systemRole: {type: boolean}
+      required: [code, name, systemRole]
+    AccountProvision:
+      type: object
+      properties:
+        staffId: {type: string, format: uuid}
+        username: {type: string, pattern: '^[A-Za-z0-9._-]{3,80}$'}
+        roleCodes: {type: array, minItems: 1, maxItems: 10, items: {type: string, maxLength: 48}}
+        branchIds: {type: array, minItems: 1, maxItems: 10, uniqueItems: true, items: {type: string, format: uuid}}
+        defaultBranchId: {type: string, format: uuid}
+      required: [staffId, username, roleCodes, branchIds, defaultBranchId]
+    AccountStatusChange:
+      type: object
+      properties:
+        branchId: {type: string, format: uuid}
+        accountStatus: {type: string, enum: [ACTIVE, DISABLED]}
+      required: [branchId, accountStatus]
+    HospitalAccount:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        staffId: {type: [string, 'null'], format: uuid}
+        staffName: {type: [string, 'null']}
+        username: {type: string}
+        accountStatus: {type: string, enum: [ACTIVE, DISABLED, LOCKED]}
+        mustChangePassword: {type: boolean}
+        lastLoginAt: {type: [string, 'null'], format: date-time}
+        createdAt: {type: string, format: date-time}
+        roleCodes: {type: array, items: {type: string}}
+        branchIds: {type: array, items: {type: string, format: uuid}}
+        defaultBranchId: {type: [string, 'null'], format: uuid}
+      required: [id, username, accountStatus, mustChangePassword, createdAt, roleCodes, branchIds]
+    ApiError:
+      type: object
+      properties:
+        timestamp: {type: string, format: date-time}
+        status: {type: integer}
+        code: {type: string}
+        title: {type: string}
+        detail: {type: string}
+        path: {type: [string, 'null']}
+    SystemSetting:
+      type: object
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        unit:
+          type: string
+        defaultValue:
+          type: number
+        globalValue:
+          type:
+          - number
+          - 'null'
+        branchValue:
+          type:
+          - number
+          - 'null'
+        effectiveValue:
+          type: number
+        effectiveSource:
+          type: string
+          enum:
+          - BRANCH
+          - GLOBAL
+          - DEFAULT
+        minimum:
+          type: number
+        maximum:
+          type: number
+        updatedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - key
+      - label
+      - description
+      - unit
+      - defaultValue
+      - effectiveValue
+      - effectiveSource
+      - minimum
+      - maximum
+    SystemSettingUpdate:
+      type: object
+      properties:
+        key:
+          type: string
+          maxLength: 100
+        branchId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        value:
+          type: number
+      required:
+      - key
+      - value
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        actorUsername:
+          type: string
+        branchId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        branchName:
+          type:
+          - string
+          - 'null'
+        actionCode:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        outcome:
+          type: string
+          enum:
+          - SUCCESS
+          - DENIED
+          - FAILURE
+        occurredAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - actorUsername
+      - actionCode
+      - resourceType
+      - outcome
+      - occurredAt
+    AuditLogPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogEntry'
+        total:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+      required:
+      - items
+      - total
+      - offset
+      - limit
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        notificationType:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        referenceType:
+          type:
+          - string
+          - 'null'
+        referenceId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - notificationType
+      - title
+      - body
+      - createdAt
+    NotificationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        total:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+      required:
+      - items
+      - total
+      - offset
+      - limit
+    NotificationUnreadCount:
+      type: object
+      properties:
+        unreadCount:
+          type: integer
+        updatedCount:
+          type: integer
+      required:
+      - unreadCount
+      - updatedCount
+    HealthReadiness:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - UP
+          - DEGRADED
+        application:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum:
+            - UP
+            - DOWN
+      required:
+      - status
+      - application
+      - timestamp
+      - checks

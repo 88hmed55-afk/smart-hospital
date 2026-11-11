@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.smarthospital</groupId>
+    <artifactId>smart-hospital</artifactId>
+    <version>1.0.0</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>smart-hospital-ear</artifactId>
+  <packaging>ear</packaging>
+  <name>Smart Hospital Enterprise Application (EAR)</name>
+  <description>Deployable Enterprise Application archive for GlassFish 7 / Jakarta EE 10.</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.smarthospital</groupId>
+      <artifactId>smart-hospital-web</artifactId>
+      <version>${project.version}</version>
+      <type>war</type>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>smart-hospital</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-ear-plugin</artifactId>
+        <configuration>
+          <version>10</version>
+          <generateApplicationXml>true</generateApplicationXml>
+          <defaultLibBundleDir>lib</defaultLibBundleDir>
+          <modules>
+            <webModule>
+              <groupId>com.smarthospital</groupId>
+              <artifactId>smart-hospital-web</artifactId>
+              <contextRoot>/</contextRoot>
+              <bundleFileName>smart-hospital-web.war</bundleFileName>
+            </webModule>
+          </modules>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

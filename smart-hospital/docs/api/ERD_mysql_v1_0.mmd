@@ -1,0 +1,496 @@
+%% Smart Hospital — MySQL 8.0.38 schema ERD generated from database/mysql/01_schema.sql
+%% Includes FK relationships present in CREATE TABLE and ALTER TABLE statements.
+erDiagram
+    ADMISSIONS {
+        CHAR_36 admitted_by FK
+        CHAR_36 attending_doctor_id FK
+        CHAR_36 branch_id FK
+        CHAR_36 discharged_by FK
+        CHAR_36 encounter_id FK
+        CHAR_36 id PK
+        CHAR_36 patient_id FK
+    }
+    APPOINTMENTS {
+        CHAR_36 branch_id FK
+        CHAR_36 created_by FK
+        CHAR_36 department_id FK
+        CHAR_36 doctor_staff_id FK
+        CHAR_36 id PK
+        CHAR_36 patient_id FK
+    }
+    AUDIT_LOGS {
+        CHAR_36 actor_user_id FK
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+    }
+    BED_ASSIGNMENTS {
+        CHAR_36 admission_id FK
+        CHAR_36 assigned_by FK
+        CHAR_36 bed_id FK
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+        CHAR_36 released_by FK
+    }
+    BEDS {
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+        CHAR_36 room_id FK
+    }
+    CHART_OF_ACCOUNTS {
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+        CHAR_36 parent_account_id FK
+    }
+    CLINICAL_NOTES {
+        CHAR_36 amended_from_id FK
+        CHAR_36 author_staff_id FK
+        CHAR_36 encounter_id FK
+        CHAR_36 id PK
+    }
+    DECISION_CARD_ACTIONS {
+        CHAR_36 assigned_to FK
+        CHAR_36 baseline_metric_snapshot_id FK
+        CHAR_36 decision_card_id FK
+        CHAR_36 id PK
+        CHAR_36 outcome_metric_snapshot_id FK
+    }
+    DECISION_CARD_EVIDENCE {
+        CHAR_36 decision_card_id FK
+        CHAR_36 id PK
+        CHAR_36 metric_snapshot_id FK
+    }
+    DECISION_CARDS {
+        CHAR_36 acknowledged_by FK
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+    }
+    DEPARTMENTS {
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+    }
+    DIAGNOSIS_CATALOG {
+        CHAR_36 id PK
+    }
+    DISPENSE_ITEMS {
+        CHAR_36 batch_id FK
+        CHAR_36 dispense_id FK
+        CHAR_36 id PK
+        CHAR_36 prescription_item_id FK
+    }
+    DISPENSES {
+        CHAR_36 branch_id FK
+        CHAR_36 dispensed_by FK
+        CHAR_36 id PK
+        CHAR_36 inventory_location_id FK
+        CHAR_36 prescription_id FK
+    }
+    DOCTOR_PROFILES {
+        CHAR_36 branch_id FK
+        CHAR_36 staff_id PK FK
+    }
+    ENCOUNTER_CARE_TEAM {
+        CHAR_36 assigned_by FK
+        CHAR_36 encounter_id FK
+        CHAR_36 id PK
+        CHAR_36 staff_id FK
+    }
+    ENCOUNTER_DIAGNOSES {
+        CHAR_36 diagnosis_id FK
+        CHAR_36 encounter_id FK
+        CHAR_36 id PK
+        CHAR_36 recorded_by FK
+    }
+    ENCOUNTERS {
+        CHAR_36 appointment_id FK
+        CHAR_36 attending_doctor_id FK
+        CHAR_36 branch_id FK
+        CHAR_36 created_by FK
+        CHAR_36 department_id FK
+        CHAR_36 id PK
+        CHAR_36 patient_id FK
+    }
+    FISCAL_PERIODS {
+        CHAR_36 branch_id FK
+        CHAR_36 closed_by FK
+        CHAR_36 id PK
+    }
+    GOODS_RECEIPT_ITEMS {
+        CHAR_36 id PK
+        CHAR_36 medication_batch_id FK
+        CHAR_36 medication_id FK
+        CHAR_36 purchase_order_id FK
+        CHAR_36 purchase_order_item_id FK
+        CHAR_36 receipt_id FK
+    }
+    GOODS_RECEIPTS {
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+        CHAR_36 inventory_location_id FK
+        CHAR_36 posted_by FK
+        CHAR_36 purchase_order_id FK
+        CHAR_36 received_by FK
+    }
+    HOSPITAL_BRANCHES {
+        CHAR_36 id PK
+    }
+    INVENTORY_LOCATIONS {
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+    }
+    INVENTORY_REORDER_POLICIES {
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+        CHAR_36 location_id FK
+        CHAR_36 medication_id FK
+        CHAR_36 updated_by FK
+    }
+    INVOICE_ITEMS {
+        CHAR_36 dispense_item_id FK
+        CHAR_36 id PK
+        CHAR_36 invoice_id FK
+        CHAR_36 service_id FK
+    }
+    INVOICES {
+        CHAR_36 branch_id FK
+        CHAR_36 created_by FK
+        CHAR_36 encounter_id FK
+        CHAR_36 id PK
+        CHAR_36 patient_id FK
+    }
+    JOURNAL_ENTRIES {
+        CHAR_36 branch_id FK
+        CHAR_36 created_by FK
+        CHAR_36 fiscal_period_id FK
+        CHAR_36 id PK
+        CHAR_36 posted_by FK
+        CHAR_36 reversal_of_entry_id FK
+    }
+    JOURNAL_LINES {
+        CHAR_36 account_id FK
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+        CHAR_36 journal_entry_id FK
+    }
+    LAB_ORDER_ITEMS {
+        CHAR_36 collected_by FK
+        CHAR_36 id PK
+        CHAR_36 lab_order_id FK
+        CHAR_36 lab_test_id FK
+    }
+    LAB_ORDERS {
+        CHAR_36 branch_id FK
+        CHAR_36 encounter_id FK
+        CHAR_36 id PK
+        CHAR_36 ordered_by FK
+    }
+    LAB_RESULTS {
+        CHAR_36 id PK
+        CHAR_36 lab_order_item_id FK
+        CHAR_36 performed_by FK
+        CHAR_36 reviewed_by FK
+    }
+    LAB_TEST_CATALOG {
+        CHAR_36 id PK
+    }
+    MEDICATION_BATCHES {
+        CHAR_36 id PK
+        CHAR_36 medication_id FK
+    }
+    MEDICATIONS {
+        CHAR_36 id PK
+    }
+    MESSAGE_OUTBOX {
+        CHAR_36 id PK
+    }
+    METRIC_DEFINITIONS {
+        CHAR_36 id PK
+    }
+    METRIC_SNAPSHOTS {
+        CHAR_36 branch_id FK
+        CHAR_36 department_id FK
+        CHAR_36 id PK
+        CHAR_36 metric_definition_id FK
+    }
+    NOTIFICATIONS {
+        CHAR_36 id PK
+        CHAR_36 recipient_user_id FK
+        CHAR_36 source_event_id FK
+    }
+    OPERATIONAL_ALERTS {
+        CHAR_36 acknowledged_by FK
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+    }
+    PATIENT_ALLERGIES {
+        CHAR_36 id PK
+        CHAR_36 patient_id FK
+        CHAR_36 recorded_by FK
+    }
+    PATIENT_BRANCH_ACCESS {
+        CHAR_36 branch_id FK
+        CHAR_36 granted_by FK
+        CHAR_36 id PK
+        CHAR_36 patient_id FK
+    }
+    PATIENT_CONTACTS {
+        CHAR_36 id PK
+        CHAR_36 patient_id FK
+    }
+    PATIENTS {
+        CHAR_36 created_by FK
+        CHAR_36 id PK
+    }
+    PAYMENTS {
+        CHAR_36 id PK
+        CHAR_36 invoice_id FK
+        CHAR_36 received_by FK
+    }
+    PERMISSIONS {
+        CHAR_36 id PK
+    }
+    PRESCRIPTION_ITEMS {
+        CHAR_36 id PK
+        CHAR_36 medication_id FK
+        CHAR_36 prescription_id FK
+    }
+    PRESCRIPTIONS {
+        CHAR_36 branch_id FK
+        CHAR_36 cancelled_by FK
+        CHAR_36 encounter_id FK
+        CHAR_36 id PK
+        CHAR_36 prescriber_staff_id FK
+    }
+    PURCHASE_ORDER_APPROVALS {
+        CHAR_36 approver_user_id FK
+        CHAR_36 id PK
+        CHAR_36 purchase_order_id FK
+    }
+    PURCHASE_ORDER_ITEMS {
+        CHAR_36 id PK
+        CHAR_36 medication_id FK
+        CHAR_36 purchase_order_id FK
+    }
+    PURCHASE_ORDERS {
+        CHAR_36 approved_by FK
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+        CHAR_36 requested_by FK
+        CHAR_36 supplier_id FK
+    }
+    ROLE_PERMISSIONS {
+        CHAR_36 permission_id PK FK
+        CHAR_36 role_id PK FK
+    }
+    ROLES {
+        CHAR_36 id PK
+    }
+    ROOMS {
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+        CHAR_36 ward_id FK
+    }
+    SERVICE_CATALOG {
+        CHAR_36 id PK
+    }
+    STAFF_MEMBERS {
+        CHAR_36 branch_id FK
+        CHAR_36 department_id FK
+        CHAR_36 id PK
+    }
+    STOCK_BALANCES {
+        CHAR_36 batch_id FK
+        CHAR_36 id PK
+        CHAR_36 location_id FK
+    }
+    STOCK_MOVEMENTS {
+        CHAR_36 batch_id FK
+        CHAR_36 id PK
+        CHAR_36 location_id FK
+        CHAR_36 performed_by FK
+    }
+    SUPPLIERS {
+        CHAR_36 id PK
+    }
+    SYSTEM_SETTINGS {
+        CHAR_36 branch_id FK
+        CHAR_36 id PK
+        CHAR_36 updated_by FK
+    }
+    USER_ACCOUNTS {
+        CHAR_36 id PK
+        CHAR_36 staff_id FK
+    }
+    USER_BRANCH_ACCESS {
+        CHAR_36 branch_id PK FK
+        CHAR_36 user_id PK FK
+    }
+    USER_ROLES {
+        CHAR_36 assigned_by FK
+        CHAR_36 role_id PK FK
+        CHAR_36 user_id PK FK
+    }
+    VITAL_SIGNS {
+        CHAR_36 encounter_id FK
+        CHAR_36 id PK
+        CHAR_36 measured_by FK
+    }
+    WARDS {
+        CHAR_36 branch_id FK
+        CHAR_36 department_id FK
+        CHAR_36 id PK
+    }
+    HOSPITAL_BRANCHES ||--o{ DEPARTMENTS : "branch_id"
+    HOSPITAL_BRANCHES ||--o{ STAFF_MEMBERS : "branch_id"
+    DEPARTMENTS ||--o{ STAFF_MEMBERS : "department_id"
+    STAFF_MEMBERS ||--o{ DOCTOR_PROFILES : "staff_id"
+    STAFF_MEMBERS ||--o{ USER_ACCOUNTS : "staff_id"
+    USER_ACCOUNTS ||--o{ USER_ROLES : "user_id"
+    ROLES ||--o{ USER_ROLES : "role_id"
+    USER_ACCOUNTS ||--o{ USER_ROLES : "assigned_by"
+    ROLES ||--o{ ROLE_PERMISSIONS : "role_id"
+    PERMISSIONS ||--o{ ROLE_PERMISSIONS : "permission_id"
+    USER_ACCOUNTS ||--o{ USER_BRANCH_ACCESS : "user_id"
+    HOSPITAL_BRANCHES ||--o{ USER_BRANCH_ACCESS : "branch_id"
+    USER_ACCOUNTS ||--o{ PATIENTS : "created_by"
+    PATIENTS ||--o{ PATIENT_CONTACTS : "patient_id"
+    PATIENTS ||--o{ PATIENT_ALLERGIES : "patient_id"
+    STAFF_MEMBERS ||--o{ PATIENT_ALLERGIES : "recorded_by"
+    HOSPITAL_BRANCHES ||--o{ APPOINTMENTS : "branch_id"
+    PATIENTS ||--o{ APPOINTMENTS : "patient_id"
+    DOCTOR_PROFILES ||--o{ APPOINTMENTS : "doctor_staff_id"
+    DEPARTMENTS ||--o{ APPOINTMENTS : "department_id"
+    USER_ACCOUNTS ||--o{ APPOINTMENTS : "created_by"
+    HOSPITAL_BRANCHES ||--o{ ENCOUNTERS : "branch_id"
+    PATIENTS ||--o{ ENCOUNTERS : "patient_id"
+    APPOINTMENTS ||--o{ ENCOUNTERS : "appointment_id"
+    DEPARTMENTS ||--o{ ENCOUNTERS : "department_id"
+    DOCTOR_PROFILES ||--o{ ENCOUNTERS : "attending_doctor_id"
+    USER_ACCOUNTS ||--o{ ENCOUNTERS : "created_by"
+    ENCOUNTERS ||--o{ VITAL_SIGNS : "encounter_id"
+    STAFF_MEMBERS ||--o{ VITAL_SIGNS : "measured_by"
+    ENCOUNTERS ||--o{ CLINICAL_NOTES : "encounter_id"
+    STAFF_MEMBERS ||--o{ CLINICAL_NOTES : "author_staff_id"
+    CLINICAL_NOTES ||--o{ CLINICAL_NOTES : "amended_from_id"
+    ENCOUNTERS ||--o{ ENCOUNTER_DIAGNOSES : "encounter_id"
+    DIAGNOSIS_CATALOG ||--o{ ENCOUNTER_DIAGNOSES : "diagnosis_id"
+    STAFF_MEMBERS ||--o{ ENCOUNTER_DIAGNOSES : "recorded_by"
+    ENCOUNTERS ||--o{ LAB_ORDERS : "encounter_id"
+    DOCTOR_PROFILES ||--o{ LAB_ORDERS : "ordered_by"
+    LAB_ORDERS ||--o{ LAB_ORDER_ITEMS : "lab_order_id"
+    LAB_TEST_CATALOG ||--o{ LAB_ORDER_ITEMS : "lab_test_id"
+    STAFF_MEMBERS ||--o{ LAB_ORDER_ITEMS : "collected_by"
+    LAB_ORDER_ITEMS ||--o{ LAB_RESULTS : "lab_order_item_id"
+    STAFF_MEMBERS ||--o{ LAB_RESULTS : "performed_by"
+    STAFF_MEMBERS ||--o{ LAB_RESULTS : "reviewed_by"
+    HOSPITAL_BRANCHES ||--o{ INVENTORY_LOCATIONS : "branch_id"
+    MEDICATIONS ||--o{ MEDICATION_BATCHES : "medication_id"
+    INVENTORY_LOCATIONS ||--o{ STOCK_BALANCES : "location_id"
+    MEDICATION_BATCHES ||--o{ STOCK_BALANCES : "batch_id"
+    INVENTORY_LOCATIONS ||--o{ STOCK_MOVEMENTS : "location_id"
+    MEDICATION_BATCHES ||--o{ STOCK_MOVEMENTS : "batch_id"
+    USER_ACCOUNTS ||--o{ STOCK_MOVEMENTS : "performed_by"
+    ENCOUNTERS ||--o{ PRESCRIPTIONS : "encounter_id"
+    DOCTOR_PROFILES ||--o{ PRESCRIPTIONS : "prescriber_staff_id"
+    USER_ACCOUNTS ||--o{ PRESCRIPTIONS : "cancelled_by"
+    PRESCRIPTIONS ||--o{ PRESCRIPTION_ITEMS : "prescription_id"
+    MEDICATIONS ||--o{ PRESCRIPTION_ITEMS : "medication_id"
+    PRESCRIPTIONS ||--o{ DISPENSES : "prescription_id"
+    STAFF_MEMBERS ||--o{ DISPENSES : "dispensed_by"
+    INVENTORY_LOCATIONS ||--o{ DISPENSES : "inventory_location_id"
+    DISPENSES ||--o{ DISPENSE_ITEMS : "dispense_id"
+    PRESCRIPTION_ITEMS ||--o{ DISPENSE_ITEMS : "prescription_item_id"
+    MEDICATION_BATCHES ||--o{ DISPENSE_ITEMS : "batch_id"
+    HOSPITAL_BRANCHES ||--o{ INVOICES : "branch_id"
+    PATIENTS ||--o{ INVOICES : "patient_id"
+    ENCOUNTERS ||--o{ INVOICES : "encounter_id"
+    USER_ACCOUNTS ||--o{ INVOICES : "created_by"
+    INVOICES ||--o{ INVOICE_ITEMS : "invoice_id"
+    SERVICE_CATALOG ||--o{ INVOICE_ITEMS : "service_id"
+    DISPENSE_ITEMS ||--o{ INVOICE_ITEMS : "dispense_item_id"
+    INVOICES ||--o{ PAYMENTS : "invoice_id"
+    USER_ACCOUNTS ||--o{ PAYMENTS : "received_by"
+    USER_ACCOUNTS ||--o{ NOTIFICATIONS : "recipient_user_id"
+    USER_ACCOUNTS ||--o{ AUDIT_LOGS : "actor_user_id"
+    HOSPITAL_BRANCHES ||--o{ AUDIT_LOGS : "branch_id"
+    HOSPITAL_BRANCHES ||--o{ OPERATIONAL_ALERTS : "branch_id"
+    USER_ACCOUNTS ||--o{ OPERATIONAL_ALERTS : "acknowledged_by"
+    HOSPITAL_BRANCHES ||--o{ SYSTEM_SETTINGS : "branch_id"
+    USER_ACCOUNTS ||--o{ SYSTEM_SETTINGS : "updated_by"
+    DEPARTMENTS ||--o{ WARDS : "department_id_and_branch_id"
+    HOSPITAL_BRANCHES ||--o{ WARDS : "branch_id"
+    WARDS ||--o{ ROOMS : "ward_id_and_branch_id"
+    ROOMS ||--o{ BEDS : "room_id_and_branch_id"
+    ENCOUNTERS ||--o{ ADMISSIONS : "encounter_id_and_branch_id_and_patient_id"
+    DOCTOR_PROFILES ||--o{ ADMISSIONS : "attending_doctor_id_and_branch_id"
+    HOSPITAL_BRANCHES ||--o{ ADMISSIONS : "branch_id"
+    PATIENTS ||--o{ ADMISSIONS : "patient_id"
+    DOCTOR_PROFILES ||--o{ ADMISSIONS : "attending_doctor_id"
+    USER_ACCOUNTS ||--o{ ADMISSIONS : "admitted_by"
+    USER_ACCOUNTS ||--o{ ADMISSIONS : "discharged_by"
+    ADMISSIONS ||--o{ BED_ASSIGNMENTS : "admission_id_and_branch_id"
+    BEDS ||--o{ BED_ASSIGNMENTS : "bed_id_and_branch_id"
+    USER_ACCOUNTS ||--o{ BED_ASSIGNMENTS : "assigned_by"
+    USER_ACCOUNTS ||--o{ BED_ASSIGNMENTS : "released_by"
+    HOSPITAL_BRANCHES ||--o{ PURCHASE_ORDERS : "branch_id"
+    SUPPLIERS ||--o{ PURCHASE_ORDERS : "supplier_id"
+    USER_ACCOUNTS ||--o{ PURCHASE_ORDERS : "requested_by"
+    USER_ACCOUNTS ||--o{ PURCHASE_ORDERS : "approved_by"
+    PURCHASE_ORDERS ||--o{ PURCHASE_ORDER_ITEMS : "purchase_order_id"
+    MEDICATIONS ||--o{ PURCHASE_ORDER_ITEMS : "medication_id"
+    PURCHASE_ORDERS ||--o{ PURCHASE_ORDER_APPROVALS : "purchase_order_id"
+    USER_ACCOUNTS ||--o{ PURCHASE_ORDER_APPROVALS : "approver_user_id"
+    PURCHASE_ORDERS ||--o{ GOODS_RECEIPTS : "purchase_order_id_and_branch_id"
+    INVENTORY_LOCATIONS ||--o{ GOODS_RECEIPTS : "inventory_location_id_and_branch_id"
+    USER_ACCOUNTS ||--o{ GOODS_RECEIPTS : "received_by"
+    USER_ACCOUNTS ||--o{ GOODS_RECEIPTS : "posted_by"
+    GOODS_RECEIPTS ||--o{ GOODS_RECEIPT_ITEMS : "receipt_id_and_purchase_order_id"
+    PURCHASE_ORDER_ITEMS ||--o{ GOODS_RECEIPT_ITEMS : "purchase_order_item_id_and_purchase_order_id_and_medication_id"
+    MEDICATION_BATCHES ||--o{ GOODS_RECEIPT_ITEMS : "medication_batch_id_and_medication_id"
+    DEPARTMENTS ||--o{ METRIC_SNAPSHOTS : "department_id_and_branch_id"
+    METRIC_DEFINITIONS ||--o{ METRIC_SNAPSHOTS : "metric_definition_id"
+    HOSPITAL_BRANCHES ||--o{ METRIC_SNAPSHOTS : "branch_id"
+    HOSPITAL_BRANCHES ||--o{ DECISION_CARDS : "branch_id"
+    USER_ACCOUNTS ||--o{ DECISION_CARDS : "acknowledged_by"
+    DECISION_CARDS ||--o{ DECISION_CARD_EVIDENCE : "decision_card_id"
+    METRIC_SNAPSHOTS ||--o{ DECISION_CARD_EVIDENCE : "metric_snapshot_id"
+    DECISION_CARDS ||--o{ DECISION_CARD_ACTIONS : "decision_card_id"
+    USER_ACCOUNTS ||--o{ DECISION_CARD_ACTIONS : "assigned_to"
+    METRIC_SNAPSHOTS ||--o{ DECISION_CARD_ACTIONS : "baseline_metric_snapshot_id"
+    METRIC_SNAPSHOTS ||--o{ DECISION_CARD_ACTIONS : "outcome_metric_snapshot_id"
+    CHART_OF_ACCOUNTS ||--o{ CHART_OF_ACCOUNTS : "parent_account_id_and_branch_id"
+    HOSPITAL_BRANCHES ||--o{ CHART_OF_ACCOUNTS : "branch_id"
+    HOSPITAL_BRANCHES ||--o{ FISCAL_PERIODS : "branch_id"
+    USER_ACCOUNTS ||--o{ FISCAL_PERIODS : "closed_by"
+    FISCAL_PERIODS ||--o{ JOURNAL_ENTRIES : "fiscal_period_id_and_branch_id"
+    JOURNAL_ENTRIES ||--o{ JOURNAL_ENTRIES : "reversal_of_entry_id_and_branch_id"
+    HOSPITAL_BRANCHES ||--o{ JOURNAL_ENTRIES : "branch_id"
+    USER_ACCOUNTS ||--o{ JOURNAL_ENTRIES : "created_by"
+    USER_ACCOUNTS ||--o{ JOURNAL_ENTRIES : "posted_by"
+    JOURNAL_ENTRIES ||--o{ JOURNAL_LINES : "journal_entry_id_and_branch_id"
+    CHART_OF_ACCOUNTS ||--o{ JOURNAL_LINES : "account_id_and_branch_id"
+    PATIENTS ||--o{ PATIENT_BRANCH_ACCESS : "patient_id"
+    HOSPITAL_BRANCHES ||--o{ PATIENT_BRANCH_ACCESS : "branch_id"
+    USER_ACCOUNTS ||--o{ PATIENT_BRANCH_ACCESS : "granted_by"
+    ENCOUNTERS ||--o{ ENCOUNTER_CARE_TEAM : "encounter_id"
+    STAFF_MEMBERS ||--o{ ENCOUNTER_CARE_TEAM : "staff_id"
+    USER_ACCOUNTS ||--o{ ENCOUNTER_CARE_TEAM : "assigned_by"
+    INVENTORY_LOCATIONS ||--o{ INVENTORY_REORDER_POLICIES : "location_id_and_branch_id"
+    HOSPITAL_BRANCHES ||--o{ INVENTORY_REORDER_POLICIES : "branch_id"
+    MEDICATIONS ||--o{ INVENTORY_REORDER_POLICIES : "medication_id"
+    USER_ACCOUNTS ||--o{ INVENTORY_REORDER_POLICIES : "updated_by"
+    STAFF_MEMBERS ||--o{ DOCTOR_PROFILES : "staff_id_and_branch_id"
+    ENCOUNTERS ||--o{ LAB_ORDERS : "encounter_id_and_branch_id"
+    DOCTOR_PROFILES ||--o{ LAB_ORDERS : "ordered_by_and_branch_id"
+    ENCOUNTERS ||--o{ PRESCRIPTIONS : "encounter_id_and_branch_id"
+    DOCTOR_PROFILES ||--o{ PRESCRIPTIONS : "prescriber_staff_id_and_branch_id"
+    PRESCRIPTIONS ||--o{ DISPENSES : "prescription_id_and_branch_id"
+    INVENTORY_LOCATIONS ||--o{ DISPENSES : "inventory_location_id_and_branch_id"
+    STAFF_MEMBERS ||--o{ DISPENSES : "dispensed_by_and_branch_id"
+    DEPARTMENTS ||--o{ STAFF_MEMBERS : "department_id_and_branch_id"
+    DEPARTMENTS ||--o{ APPOINTMENTS : "department_id_and_branch_id"
+    DOCTOR_PROFILES ||--o{ APPOINTMENTS : "doctor_staff_id_and_branch_id"
+    DEPARTMENTS ||--o{ ENCOUNTERS : "department_id_and_branch_id"
+    DOCTOR_PROFILES ||--o{ ENCOUNTERS : "attending_doctor_id_and_branch_id"
+    ENCOUNTERS ||--o{ INVOICES : "encounter_id_and_branch_id_and_patient_id"
+    PATIENT_BRANCH_ACCESS ||--o{ ENCOUNTERS : "patient_id_and_branch_id"
+    MESSAGE_OUTBOX ||--o{ NOTIFICATIONS : "source_event_id"

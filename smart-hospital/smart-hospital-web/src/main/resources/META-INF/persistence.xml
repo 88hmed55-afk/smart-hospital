@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<persistence xmlns="https://jakarta.ee/xml/ns/persistence"
+             version="3.1">
+  <persistence-unit name="SmartHospitalPU" transaction-type="JTA">
+    <jta-data-source>jdbc/SmartHospitalDS</jta-data-source>
+    <exclude-unlisted-classes>false</exclude-unlisted-classes>
+    <shared-cache-mode>ENABLE_SELECTIVE</shared-cache-mode>
+    <validation-mode>CALLBACK</validation-mode>
+    <properties>
+      <!-- Database migrations are the source of truth. JPA never creates or alters schema. -->
+      <property name="eclipselink.ddl-generation" value="none"/>
+      <property name="eclipselink.target-database" value="MySQL"/>
+      <property name="eclipselink.logging.level" value="WARNING"/>
+      <property name="eclipselink.weaving" value="true"/>
+    </properties>
+  </persistence-unit>
+</persistence>

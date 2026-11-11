@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE glassfish-web-app PUBLIC "-//GlassFish.org//DTD GlassFish Application Server 3.1 Servlet 3.0//EN" "https://glassfish.org/dtds/glassfish-web-app_3_0-1.dtd">
+<glassfish-web-app>
+    <security-role-mapping>
+        <role-name>HOSPITAL_ADMIN</role-name>
+        <group-name>HOSPITAL_ADMIN</group-name>
+    </security-role-mapping>
+    <security-role-mapping>
+        <role-name>HOSPITAL_MANAGER</role-name>
+        <group-name>HOSPITAL_MANAGER</group-name>
+    </security-role-mapping>
+    <security-role-mapping>
+        <role-name>RECEPTIONIST</role-name>
+        <group-name>RECEPTIONIST</group-name>
+    </security-role-mapping>
+    <security-role-mapping>
+        <role-name>DOCTOR</role-name>
+        <group-name>DOCTOR</group-name>
+    </security-role-mapping>
+    <security-role-mapping>
+        <role-name>NURSE</role-name>
+        <group-name>NURSE</group-name>
+    </security-role-mapping>
+    <security-role-mapping>
+        <role-name>LAB_TECHNICIAN</role-name>
+        <group-name>LAB_TECHNICIAN</group-name>
+    </security-role-mapping>
+    <security-role-mapping>
+        <role-name>LAB_SUPERVISOR</role-name>
+        <group-name>LAB_SUPERVISOR</group-name>
+    </security-role-mapping>
+    <security-role-mapping>
+        <role-name>PHARMACIST</role-name>
+        <group-name>PHARMACIST</group-name>
+    </security-role-mapping>
+    <security-role-mapping>
+        <role-name>ACCOUNTANT</role-name>
+        <group-name>ACCOUNTANT</group-name>
+    </security-role-mapping>
+    <security-role-mapping>
+        <role-name>INVENTORY_OFFICER</role-name>
+        <group-name>INVENTORY_OFFICER</group-name>
+    </security-role-mapping>
+</glassfish-web-app>

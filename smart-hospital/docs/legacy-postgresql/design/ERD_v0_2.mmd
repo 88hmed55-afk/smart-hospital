@@ -1,0 +1,97 @@
+erDiagram
+    HOSPITAL_BRANCHES ||--o{ DEPARTMENTS : contains
+    HOSPITAL_BRANCHES ||--o{ STAFF_MEMBERS : employs
+    DEPARTMENTS ||--o{ STAFF_MEMBERS : assigns
+    STAFF_MEMBERS ||--o| DOCTOR_PROFILES : may_be
+    STAFF_MEMBERS ||--o| USER_ACCOUNTS : has_login
+
+    USER_ACCOUNTS ||--o{ USER_ROLES : assigned
+    ROLES ||--o{ USER_ROLES : grants
+    ROLES ||--o{ ROLE_PERMISSIONS : includes
+    PERMISSIONS ||--o{ ROLE_PERMISSIONS : assigned
+    USER_ACCOUNTS ||--o{ USER_BRANCH_ACCESS : scoped_to
+    HOSPITAL_BRANCHES ||--o{ USER_BRANCH_ACCESS : permits
+
+    PATIENTS ||--o{ PATIENT_CONTACTS : has
+    PATIENTS ||--o{ PATIENT_ALLERGIES : reports
+    PATIENTS ||--o{ APPOINTMENTS : books
+    DOCTOR_PROFILES ||--o{ APPOINTMENTS : attends
+    DEPARTMENTS ||--o{ APPOINTMENTS : schedules
+    PATIENTS ||--o{ ENCOUNTERS : has
+    APPOINTMENTS ||--o| ENCOUNTERS : may_create
+    DOCTOR_PROFILES ||--o{ ENCOUNTERS : leads
+    ENCOUNTERS ||--o{ VITAL_SIGNS : records
+    ENCOUNTERS ||--o{ CLINICAL_NOTES : documents
+    ENCOUNTERS ||--o{ ENCOUNTER_DIAGNOSES : classified_by
+    DIAGNOSIS_CATALOG ||--o{ ENCOUNTER_DIAGNOSES : selected
+
+    ENCOUNTERS ||--o{ LAB_ORDERS : requests
+    LAB_ORDERS ||--|{ LAB_ORDER_ITEMS : contains
+    LAB_TEST_CATALOG ||--o{ LAB_ORDER_ITEMS : defines
+    LAB_ORDER_ITEMS ||--o| LAB_RESULTS : produces
+
+    ENCOUNTERS ||--o{ PRESCRIPTIONS : receives
+    PRESCRIPTIONS ||--|{ PRESCRIPTION_ITEMS : contains
+    MEDICATIONS ||--o{ PRESCRIPTION_ITEMS : prescribed
+    MEDICATIONS ||--o{ MEDICATION_BATCHES : has_batches
+    INVENTORY_LOCATIONS ||--o{ STOCK_BALANCES : holds
+    MEDICATION_BATCHES ||--o{ STOCK_BALANCES : counted_in
+    MEDICATION_BATCHES ||--o{ STOCK_MOVEMENTS : moves
+    INVENTORY_LOCATIONS ||--o{ STOCK_MOVEMENTS : records
+    PRESCRIPTIONS ||--o{ DISPENSES : fulfilled_by
+    DISPENSES ||--|{ DISPENSE_ITEMS : contains
+    PRESCRIPTION_ITEMS ||--o{ DISPENSE_ITEMS : fulfilled
+    MEDICATION_BATCHES ||--o{ DISPENSE_ITEMS : supplied_from
+
+    PATIENTS ||--o{ INVOICES : billed
+    ENCOUNTERS ||--o{ INVOICES : may_generate
+    INVOICES ||--|{ INVOICE_ITEMS : contains
+    SERVICE_CATALOG ||--o{ INVOICE_ITEMS : prices
+    DISPENSE_ITEMS ||--o| INVOICE_ITEMS : may_be_billed
+    INVOICES ||--o{ PAYMENTS : settled_by
+
+    HOSPITAL_BRANCHES ||--o{ WARDS : contains
+    DEPARTMENTS ||--o{ WARDS : operates
+    WARDS ||--o{ ROOMS : contains
+    ROOMS ||--o{ BEDS : contains
+    PATIENTS ||--o{ ADMISSIONS : admitted
+    ENCOUNTERS ||--o| ADMISSIONS : inpatient_visit
+    DOCTOR_PROFILES ||--o{ ADMISSIONS : attends
+    ADMISSIONS ||--o{ BED_ASSIGNMENTS : placement_history
+    BEDS ||--o{ BED_ASSIGNMENTS : occupied_by
+
+    SUPPLIERS ||--o{ PURCHASE_ORDERS : receives
+    HOSPITAL_BRANCHES ||--o{ PURCHASE_ORDERS : requests
+    PURCHASE_ORDERS ||--|{ PURCHASE_ORDER_ITEMS : contains
+    MEDICATIONS ||--o{ PURCHASE_ORDER_ITEMS : ordered
+    PURCHASE_ORDERS ||--o{ PURCHASE_ORDER_APPROVALS : approvals
+    PURCHASE_ORDERS ||--o{ GOODS_RECEIPTS : delivered_as
+    INVENTORY_LOCATIONS ||--o{ GOODS_RECEIPTS : received_at
+    GOODS_RECEIPTS ||--|{ GOODS_RECEIPT_ITEMS : contains
+    PURCHASE_ORDER_ITEMS ||--o{ GOODS_RECEIPT_ITEMS : received_against
+    MEDICATION_BATCHES ||--o{ GOODS_RECEIPT_ITEMS : creates_or_reuses
+
+    METRIC_DEFINITIONS ||--o{ METRIC_SNAPSHOTS : defines
+    HOSPITAL_BRANCHES ||--o{ METRIC_SNAPSHOTS : measures
+    DEPARTMENTS o|--o{ METRIC_SNAPSHOTS : scopes
+    HOSPITAL_BRANCHES ||--o{ DECISION_CARDS : identifies
+    DECISION_CARDS ||--o{ DECISION_CARD_EVIDENCE : supported_by
+    METRIC_SNAPSHOTS o|--o{ DECISION_CARD_EVIDENCE : evidence
+    DECISION_CARDS ||--o{ DECISION_CARD_ACTIONS : proposes
+    METRIC_SNAPSHOTS o|--o{ DECISION_CARD_ACTIONS : measures_outcome
+
+    HOSPITAL_BRANCHES ||--o{ CHART_OF_ACCOUNTS : owns
+    CHART_OF_ACCOUNTS o|--o{ CHART_OF_ACCOUNTS : parent_of
+    HOSPITAL_BRANCHES ||--o{ FISCAL_PERIODS : defines
+    FISCAL_PERIODS ||--o{ JOURNAL_ENTRIES : contains
+    HOSPITAL_BRANCHES ||--o{ JOURNAL_ENTRIES : records
+    JOURNAL_ENTRIES ||--|{ JOURNAL_LINES : contains
+    CHART_OF_ACCOUNTS ||--o{ JOURNAL_LINES : posts_to
+    JOURNAL_ENTRIES o|--o| JOURNAL_ENTRIES : reversed_by
+
+    USER_ACCOUNTS ||--o{ NOTIFICATIONS : receives
+    USER_ACCOUNTS ||--o{ AUDIT_LOGS : performs
+    USER_ACCOUNTS ||--o{ OPERATIONAL_ALERTS : acknowledges
+
+    HOSPITAL_BRANCHES ||--o{ SYSTEM_SETTINGS : configures
+    USER_ACCOUNTS ||--o{ MESSAGE_OUTBOX : creates_events

@@ -1,0 +1,29 @@
+# Java / Maven
+backend/target/
+*.class
+*.war
+*.ear
+
+# React / Node
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# IDE / OS
+.nb-gradle/
+.netbeans/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local secrets and DB dumps
+*.cnf
+*.mylogin.cnf
+*.sql.bak
+*.dump
+*.log
+
+# Local backups and test output
+backups/
+smart-hospital-web/target/surefire-reports/

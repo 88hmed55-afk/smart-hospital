@@ -1,0 +1,55 @@
+-- Synthetic development fixtures only. Never load real patient data here.
+BEGIN;
+SET search_path TO hospital, public;
+
+INSERT INTO wards (id, branch_id, department_id, ward_code, ward_name, ward_type, is_active)
+VALUES ('50000000-0000-4000-8000-000000000001',
+        '10000000-0000-4000-8000-000000000001',
+        '20000000-0000-4000-8000-000000000005',
+        'GEN-WARD-A', 'General Ward A', 'GENERAL', TRUE)
+ON CONFLICT (branch_id, ward_code) DO NOTHING;
+
+INSERT INTO rooms (id, branch_id, ward_id, room_number, room_type, floor_label, is_active)
+VALUES
+ ('51000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000001','A-101','STANDARD','1',TRUE),
+ ('51000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000001','A-102','PRIVATE','1',TRUE)
+ON CONFLICT (ward_id, room_number) DO NOTHING;
+
+INSERT INTO beds (id, branch_id, room_id, bed_number, bed_type, operational_status, is_active)
+VALUES
+ ('52000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','51000000-0000-4000-8000-000000000001','01','STANDARD','AVAILABLE',TRUE),
+ ('52000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','51000000-0000-4000-8000-000000000001','02','STANDARD','AVAILABLE',TRUE),
+ ('52000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001','51000000-0000-4000-8000-000000000002','01','ELECTRIC','AVAILABLE',TRUE)
+ON CONFLICT (room_id, bed_number) DO NOTHING;
+
+INSERT INTO staff_members (id, branch_id, department_id, employee_number, first_name, last_name, job_title, employment_status, hired_on)
+VALUES ('30000000-0000-4000-8000-000000000007',
+        '10000000-0000-4000-8000-000000000001',
+        '20000000-0000-4000-8000-000000000006',
+        'DEMO-ACC-001', 'Demo', 'Accountant', 'Accountant', 'ACTIVE', CURRENT_DATE)
+ON CONFLICT (branch_id, employee_number) DO NOTHING;
+
+INSERT INTO user_accounts (id, staff_id, username, password_hash, password_scheme, account_status, must_change_password)
+VALUES ('40000000-0000-4000-8000-000000000008', '30000000-0000-4000-8000-000000000007',
+        'accountant1', 'GLASSFISH_FILE_REALM_ONLY', 'GLASSFISH_FILE_REALM', 'ACTIVE', TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT '40000000-0000-4000-8000-000000000008'::uuid, r.id
+  FROM roles r WHERE r.code='ACCOUNTANT'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO user_branch_access (user_id, branch_id, is_default)
+VALUES ('40000000-0000-4000-8000-000000000008', '10000000-0000-4000-8000-000000000001', TRUE)
+ON CONFLICT (user_id, branch_id) DO NOTHING;
+
+INSERT INTO service_catalog (id, code, name, service_type, standard_price, currency_code, is_active)
+VALUES
+ ('53000000-0000-4000-8000-000000000001','CONS-GEN','General consultation','CONSULTATION',5000.00,'YER',TRUE),
+ ('53000000-0000-4000-8000-000000000002','LAB-CBC','Complete blood count','LABORATORY',3500.00,'YER',TRUE),
+ ('53000000-0000-4000-8000-000000000003','XR-CHEST','Chest X-ray','RADIOLOGY',8000.00,'YER',TRUE),
+ ('53000000-0000-4000-8000-000000000004','PROC-DRESS','Wound dressing','PROCEDURE',2500.00,'YER',TRUE),
+ ('53000000-0000-4000-8000-000000000005','ROOM-GEN','General ward daily charge','ROOM',12000.00,'YER',TRUE)
+ON CONFLICT (code) DO NOTHING;
+
+COMMIT;
